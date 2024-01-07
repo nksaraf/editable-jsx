@@ -1,13 +1,36 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { EditableElement, Editor } from "@editable-jsx/editable"
+import {
+  EditableElement,
+  Editor,
+  RpcServerFunctions
+} from "@editable-jsx/editable"
+import { JSXSource } from "@editable-jsx/state"
 import { multiToggle } from "@editable-jsx/ui"
-import { useBounds, useHelper } from "@react-three/drei"
+import { useBounds, useHelper as useHelperDrei } from "@react-three/drei"
 import { Size, useStore } from "@react-three/fiber"
-import { FC, PropsWithChildren, useCallback } from "react"
+import { BirpcReturn } from "birpc"
+import { FC, PropsWithChildren, useCallback, useEffect } from "react"
 import { Camera, Object3D, Raycaster, Scene } from "three"
+import { Root } from "./root/createEditorRoot"
+
+export type EditableObject3D = THREE.Object3D & {
+  __r3f: {
+    editable: ThreeEditableElement
+  }
+}
 
 export class ThreeEditableElement extends EditableElement {
   object3D?: Object3D
+
+  constructor(
+    id: string,
+    source: JSXSource,
+    type: any,
+    parentId?: string | null | undefined,
+    currentProps?: any
+  ) {
+    super(id, source, type, parentId, currentProps)
+  }
 
   useHelper(arg0: string, helper: any, ...args: any[]): void {
     const isEditing = this.editor.useStates("editing")
@@ -30,7 +53,7 @@ export class ThreeEditableElement extends EditableElement {
       : undefined
 
     // @ts-ignore
-    useHelper(ref as any, helper, ...(args ?? []))
+    useHelperDrei(ref, helper, ...(args ?? []))
   }
 
   setObject3D(item: Object3D<Event>) {
@@ -56,8 +79,39 @@ export class ThreeEditor extends Editor {
   raycaster!: Raycaster
   bounds!: ReturnType<typeof useBounds>
 
-  findEditableElement(obj: any) {
+  canvas: HTMLCanvasElement | null
+  screenshotCanvas: HTMLCanvasElement | null
+  editorRoot: Root | null
+  appRoot: Root | null
+  gizmoLayer: number
+
+  constructor(plugins: any[], client: BirpcReturn<RpcServerFunctions>) {
+    super(plugins, client)
+
+    this.canvas = null
+    this.screenshotCanvas = null
+    this.editorRoot = null
+    this.appRoot = null
+    this.gizmoLayer = 31 // Can only be 0-31
+  }
+
+  isEditable(obj: any) {
+    return obj?.__r3f?.editable ? true : false
+  }
+
+  findEditableElement(obj: any): ThreeEditableElement {
     return obj?.__r3f?.editable
+  }
+
+  findNearestEditableElement(obj: THREE.Object3D) {
+    let element: ThreeEditableElement | undefined = undefined
+    obj.traverseAncestors((ancestor) => {
+      if (this.isEditable(ancestor as EditableObject3D)) {
+        element = this.findEditableElement(ancestor)
+        return
+      }
+    })
+    return element
   }
 
   useElement(
@@ -71,25 +125,13 @@ export class ThreeEditor extends Editor {
       forwardRef
     )
 
-    return [
-      element,
-      {
-        ...overrideProps,
-        onPointerUp:
-          Component === "root"
-            ? undefined
-            : useCallback(
-                (e: any) => {
-                  if (this.state.matches("editing")) {
-                    props.onPointerUp?.(e)
-                    e.stopPropagation()
-                    element.editor.select(element)
-                  }
-                },
-                [element]
-              )
-      }
-    ]
+    useEffect(() => {
+      const handler = () => element.editor.select(element)
+      element.addEventListener("pointerup", handler)
+      return () => element.removeEventListener("pointerup", handler)
+    }, [])
+
+    return [element, { ...overrideProps }]
   }
 
   setRef(element: any, ref: any) {

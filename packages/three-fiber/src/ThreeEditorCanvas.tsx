@@ -5,7 +5,7 @@ import { JSXSource } from "@editable-jsx/state"
 import { createMultiTunnel, Floating, Toaster } from "@editable-jsx/ui"
 import { Canvas as FiberCanvas, Props } from "@react-three/fiber"
 import { FiberProvider } from "its-fine"
-import { forwardRef, Suspense } from "react"
+import { forwardRef, Suspense, useCallback, useEffect } from "react"
 import { AllCommands } from "./commands"
 import { ComponentsTray } from "./ComponentsTray"
 import { EditorControls } from "./controls/EditorControls"
@@ -13,7 +13,10 @@ import { EditorPanels } from "./controls/EditorPanels"
 import { editor } from "./editor"
 import { EditorBounds } from "./EditorBounds"
 import { EditorRoot } from "./EditorRoot"
+import { AppRootProvider, FiberRootManager } from "./FiberRootManager"
+import { ThreeEditor } from "./ThreeEditor"
 import { ThreeEditorProvider } from "./ThreeEditorProvider"
+import { ThreeEventManager } from "./ThreeEventManager"
 import { ThreeTunnel } from "./ThreeTunnel"
 import { ScreenshotCanvas } from "./useScreenshotStore"
 
@@ -59,7 +62,7 @@ export const ThreeEditorCanvas = forwardRef<HTMLCanvasElement, CanvasProps>(
 
 export const EditableCanvas = forwardRef<HTMLCanvasElement, CanvasProps>(
   function EditorCanvas(props, ref) {
-    const editor = useEditor()
+    const editor = useEditor<ThreeEditor>()
     const canvasSettings = editor.useSettings("scene", {
       shadows: {
         value: true
@@ -75,31 +78,47 @@ export const EditableCanvas = forwardRef<HTMLCanvasElement, CanvasProps>(
       ref
     )
 
+    const handler = useCallback(() => {
+      editor.clearSelection()
+    }, [editor])
+
+    useEffect(() => {
+      editableElement.addEventListener("pointermissed", handler)
+      return () => editableElement.removeEventListener("pointermissed", handler)
+    }, [editableElement, handler])
+
     return (
       <FiberCanvas
-        onPointerMissed={(e: any) => {
-          editor.clearSelection()
-        }}
         {...canvasProps}
         {...canvasSettings}
+        ref={(el) => {
+          canvasProps.ref = el
+          editor.canvas = el
+        }}
       >
-        {/** drei's Bounds component to be able to focus on elements */}
-        <EditorBounds>
-          <Suspense>
-            <FiberProvider>
-              <EditorRoot element={editableElement}>{children}</EditorRoot>
-            </FiberProvider>
-          </Suspense>
-        </EditorBounds>
+        <FiberRootManager>
+          {/** drei's Bounds component to be able to focus on elements */}
+          <EditorBounds>
+            <Suspense>
+              <FiberProvider>
+                <EditorRoot element={editableElement}>
+                  <AppRootProvider>{children}</AppRootProvider>
+                </EditorRoot>
+              </FiberProvider>
+            </Suspense>
+          </EditorBounds>
 
-        {/** Used by editor elements that need to live inside the R3F provider/scene */}
-        <ThreeTunnel.Out />
+          {/** Used by editor elements that need to live inside the R3F provider/scene */}
+          <ThreeTunnel.Out />
 
-        {/*
-         * Editor UI. This can be overriden by using the EditorUI.In component
-         * in your app to override the default UI.
-         */}
-        <EditorUI.Out fallback={<EditorControls />} />
+          {/*
+           * Editor UI. This can be overriden by using the EditorUI.In component
+           * in your app to override the default UI.
+           */}
+          <EditorUI.Out fallback={<EditorControls />} />
+
+          <ThreeEventManager />
+        </FiberRootManager>
       </FiberCanvas>
     )
   }

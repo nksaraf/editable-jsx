@@ -1,7 +1,6 @@
-import { setEditable } from "@editable-jsx/editable"
+import { setEditable, useEditor } from "@editable-jsx/editable"
 import { Debug, Physics, useRapier } from "@react-three/rapier"
 import { useMemo } from "react"
-import { useEditor } from "./fiber"
 
 setEditable(Physics, ({ children, ...props }) => {
   const editor = useEditor()
@@ -10,6 +9,8 @@ setEditable(Physics, ({ children, ...props }) => {
       value: false
     }
   })
+
+  console.log(props, paused)
 
   return (
     <Physics {...props} paused={paused}>
@@ -51,5 +52,11 @@ export function RapierPlugin() {
     }
   }, [editor, rapier])
 
-  return <>{props.debug ? <Debug /> : null}</>
+  console.log(props)
+
+  return (
+    <>
+      <Debug />
+    </>
+  )
 }
