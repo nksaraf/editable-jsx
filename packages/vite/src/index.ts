@@ -71,17 +71,17 @@ export function r3f({
               [
                 reactThreeEditorBabel,
                 {
-                  importPath: "@react-three/editor/fiber",
+                  importPath: "react-dom/client",
                   replaceImports: {
-                    "@react-three/fiber": "@react-three/editor/fiber"
+                    // "@react-three/fiber": "@react-three/editor/fiber"
                   },
                   imports: {
-                    path: "@react-three/editor/fiber",
+                    path: "@editable-jsx/editable",
                     imports: [
                       "editable",
-                      "Editable",
-                      "useEditorFrame",
-                      "useEditorUpdate"
+                      "Editable"
+                      // "useEditorFrame",
+                      // "useEditorUpdate"
                     ]
                   },
                   isEditable: editable

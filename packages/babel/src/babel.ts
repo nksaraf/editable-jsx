@@ -2,8 +2,8 @@ import {
   ConfigAPI,
   NodePath,
   PluginObj,
-  template,
-  types as t
+  types as t,
+  template
 } from "@babel/core"
 import { basename, extname } from "path"
 import { JSXElementType } from "./types"
@@ -88,6 +88,8 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
             path: string
             imports: string[]
           }
+
+          if (!importPath) return
 
           body.unshift(
             t.importDeclaration(

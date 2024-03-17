@@ -59,6 +59,8 @@ export const Editable = forwardRef(
   }
 )
 
+Editable.displayName = "Editable"
+
 export function createEditable<K extends keyof JSX.IntrinsicElements, P = {}>(
   Component: any
 ) {
@@ -70,19 +72,42 @@ export function createEditable<K extends keyof JSX.IntrinsicElements, P = {}>(
       Component["type"]?.["$$typeof"] === Symbol.for("react.forward_ref"))
 
   if (hasRef) {
-    return forwardRef(function Editable(props: any, forwardRef) {
+    const Editable = forwardRef(function Editable(props: any, forwardRef) {
       const editor = useContext(EditorContext)
-      if (!editor) return <Component {...props} ref={forwardRef} />
+      console.log(editor)
+      if (!editor) {
+        if (typeof editor !== "function") {
+          return <Component {...props} ref={forwardRef} />
+        } else {
+          return Component(props, forwardRef)
+        }
+      }
+
+      console.log(Component, props, forwardRef)
 
       return editor.renderElement(Component, props, forwardRef ?? true)
     })
+    Editable.displayName = `Editable(ForwardRef(${
+      typeof Component === "string"
+        ? Component
+        : Component.displayName || Component.name
+    }))`
+    return Editable
   } else {
-    return function Editable(props: any) {
+    function Editable(props: any) {
       const editor = useContext(EditorContext)
+      console.log(editor)
       if (!editor) return <Component {...props} />
 
       return editor.renderElement(Component, props, false)
     }
+
+    Editable.displayName = `Editable(ForwardRef(${
+      typeof Component === "string"
+        ? Component
+        : Component.displayName || Component.name
+    }))`
+    return Editable as FC<P>
   }
 }
 

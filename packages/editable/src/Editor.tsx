@@ -35,7 +35,6 @@ import { BirpcReturn } from "birpc"
 import { ComponentLoader } from "./component-loader"
 import { editorMachine } from "./editor.machine"
 import { EditorPlugin } from "./EditorPlugin"
-import { Helpers } from "./helpers"
 import { Tree } from "./Tree"
 
 export type EditorStoreStateType = {
@@ -203,14 +202,14 @@ export class Editor<T extends EditableElement = EditableElement>
       return (
         <EditableContext.Provider value={editableElement}>
           <editableElement.type {...editableProps} />
-          {editableElement.mounted && <Helpers />}
+          {/* {editableElement.mounted && <Helpers />} */}
         </EditableContext.Provider>
       )
     } else {
       return (
         <EditableContext.Provider value={editableElement}>
           <editableElement.type {...editableProps} />
-          <Helpers />
+          {/* <Helpers /> */}
         </EditableContext.Provider>
       )
     }
@@ -455,7 +454,9 @@ export class Editor<T extends EditableElement = EditableElement>
         children:
           typeof props.children === "function"
             ? props.children
-            : createElement(Fragment, null, props.children, moreChildren)
+            : props.children
+            ? createElement(Fragment, null, props.children, moreChildren)
+            : null
       }
     ]
   }
