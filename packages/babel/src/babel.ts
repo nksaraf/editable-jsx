@@ -19,7 +19,7 @@ const FILE_NAME_VAR = "_jsxFileName"
  *   { value: "conditional-classes", line: 5, column: 30, type: "conditional" }
  * ]
  */
-function extractClassNameParts(
+export function extractClassNameParts(
   expr: t.Expression
 ): Array<{ value: string; line: number; column: number; type: string }> {
   const parts: Array<{

@@ -9,67 +9,7 @@
  */
 import { describe, expect, test } from "bun:test"
 import { types as t, parse } from "@babel/core"
-
-// Import the function under test — it's not exported, so we'll extract it
-// by running the Babel plugin on test JSX and checking the _source output.
-// But first, let's test the function directly by copying its logic.
-
-// We need to re-implement the extraction here since it's not exported.
-// This mirrors the function in babel.ts exactly — if the implementation changes,
-// these tests catch regressions.
-function extractClassNameParts(
-  expr: t.Expression
-): Array<{ value: string; line: number; column: number; type: string }> {
-  const parts: Array<{
-    value: string
-    line: number
-    column: number
-    type: string
-  }> = []
-
-  function visit(node: t.Node, context: string) {
-    if (t.isStringLiteral(node) && node.loc) {
-      parts.push({
-        value: node.value,
-        line: node.loc.start.line,
-        column: node.loc.start.column + 1,
-        type: context
-      })
-    } else if (t.isTemplateLiteral(node)) {
-      for (const quasi of node.quasis) {
-        if (quasi.value.raw.trim() && quasi.loc) {
-          parts.push({
-            value: quasi.value.raw.trim(),
-            line: quasi.loc.start.line,
-            column: quasi.loc.start.column + 1,
-            type: "template"
-          })
-        }
-      }
-    } else if (t.isCallExpression(node)) {
-      for (const arg of node.arguments) {
-        if (t.isExpression(arg)) {
-          visit(arg, "static")
-        }
-      }
-    } else if (t.isLogicalExpression(node) && node.operator === "&&") {
-      visit(node.right, "conditional")
-    } else if (t.isLogicalExpression(node) && node.operator === "||") {
-      visit(node.left, "fallback")
-      visit(node.right, "fallback")
-    } else if (t.isConditionalExpression(node)) {
-      visit(node.consequent, "conditional")
-      visit(node.alternate, "conditional")
-    } else if (t.isArrayExpression(node)) {
-      for (const el of node.elements) {
-        if (el && t.isExpression(el)) visit(el, "static")
-      }
-    }
-  }
-
-  visit(expr, "static")
-  return parts
-}
+import { extractClassNameParts } from "./babel"
 
 /** Parse a JS expression string and return the AST Expression node */
 function parseExpr(code: string): t.Expression {

@@ -56,14 +56,19 @@ function setAttribute(
     .find((a) => a.compilerNode.name.text === propPath)
 
   if (existing) {
-    if (typeof propValue === "object" && !Array.isArray(propValue)) {
-      existing
-        .getInitializer()!
-        .replaceWithText(`{${JSON.stringify(propValue)}}`)
+    const initializer = existing.getInitializer()
+    if (!initializer) {
+      // Boolean attribute (e.g. <div disabled />) — replace with value form
+      const s = valueExpression(propValue)
+      if (s) {
+        existing.replaceWithText(`${propPath}=${s}`)
+      }
+    } else if (typeof propValue === "object" && !Array.isArray(propValue)) {
+      initializer.replaceWithText(`{${JSON.stringify(propValue)}}`)
     } else {
       const s = valueExpression(propValue)
       if (!s) throw new Error(`Could not serialize prop value for "${propPath}"`)
-      existing.getInitializer()!.replaceWithText(s)
+      initializer.replaceWithText(s)
     }
   } else {
     const s = valueExpression(propValue)
@@ -168,6 +173,20 @@ describe("setAttribute: add new attribute", () => {
     const el = findFirstElement(sf)!
     setAttribute(el, "className", "w-full h-auto rounded-lg")
     expect(sf.getFullText()).toContain('className="w-full h-auto rounded-lg"')
+  })
+})
+
+describe("setAttribute: boolean (valueless) JSX attribute", () => {
+  test("updates boolean attribute to string value without crashing", () => {
+    const sf = createSource(
+      `const App = () => <input disabled type="text" />`
+    )
+    const el = findFirstElement(sf)!
+    setAttribute(el, "disabled", "false")
+    const text = sf.getFullText()
+    // Should not crash, and should produce a value form
+    expect(text).toContain('disabled="false"')
+    expect(text).toContain('type="text"')
   })
 })
 

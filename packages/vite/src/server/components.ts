@@ -30,10 +30,10 @@ function listReactComponents(
     }
 
     const components = ast.program.body
-      .map((node) => getReactComponent(node))
+      .flatMap((node) => getReactComponents(node))
       .filter(Boolean) as string[]
 
-    return { fileName, components }
+    return { fileName, components: [...new Set(components)] }
   } catch (error) {
     return { fileName, components: [] }
   }
@@ -41,56 +41,47 @@ function listReactComponents(
 
 /**
  * Detect exported React components from top-level AST statements.
- *
- * Handles:
- * - export default function FooBar() { return <jsx/> }
- * - export function FooBar() { ... }
- * - export const FooBar = () => { return <jsx/> }
- * - export const FooBar = forwardRef(...)
- * - export const FooBar = memo(...)
- * - export const FooBar = React.memo(...)
- * - export { FooBar }  (named re-exports — by identifier convention)
- * - export default class FooBar extends Component { ... }
+ * Returns an array because a single `export { A, B, C }` can yield multiple names.
  */
-function getReactComponent(node: types.Statement): string | undefined {
+function getReactComponents(node: types.Statement): string[] {
   if (
     !types.isExportDefaultDeclaration(node) &&
     !types.isExportNamedDeclaration(node)
   ) {
-    return
+    return []
   }
 
-  // export { Foo, Bar } — re-exports: include any PascalCase identifier
+  // export { Foo, Bar } — re-exports: include all PascalCase identifiers
   if (
     types.isExportNamedDeclaration(node) &&
     !node.declaration &&
     node.specifiers.length > 0
   ) {
-    // Return the first PascalCase export (caller collects all)
+    const names: string[] = []
     for (const spec of node.specifiers) {
       if (types.isExportSpecifier(spec)) {
         const exported = types.isIdentifier(spec.exported)
           ? spec.exported.name
           : spec.exported.value
-        if (/^[A-Z]/.test(exported)) return exported
+        if (/^[A-Z]/.test(exported)) names.push(exported)
       }
     }
-    return
+    return names
   }
 
   const decl = node.declaration
-  if (!decl) return
+  if (!decl) return []
 
   // export default function Foo() / export function Foo()
   if (types.isFunctionDeclaration(decl) && decl.id) {
     if (/^[A-Z]/.test(decl.id.name) && looksLikeComponent(decl.body)) {
-      return decl.id.name
+      return [decl.id.name]
     }
   }
 
   // export default class Foo extends Component / PureComponent
   if (types.isClassDeclaration(decl) && decl.id && /^[A-Z]/.test(decl.id.name)) {
-    return decl.id.name
+    return [decl.id.name]
   }
 
   // export const Foo = ...
@@ -100,25 +91,24 @@ function getReactComponent(node: types.Statement): string | undefined {
   ) {
     const varDecl = decl.declarations[0]
     if (!types.isIdentifier(varDecl.id) || !/^[A-Z]/.test(varDecl.id.name)) {
-      return
+      return []
     }
 
     const init = varDecl.init
-    if (!init) return
+    if (!init) return []
 
     // export const Foo = () => { ... }
     if (types.isArrowFunctionExpression(init)) {
       if (types.isBlockStatement(init.body)) {
-        if (looksLikeComponent(init.body)) return varDecl.id.name
+        if (looksLikeComponent(init.body)) return [varDecl.id.name]
       } else if (types.isJSXElement(init.body) || types.isJSXFragment(init.body)) {
-        // export const Foo = () => <div>...</div>
-        return varDecl.id.name
+        return [varDecl.id.name]
       }
     }
 
     // export const Foo = function() { ... }
     if (types.isFunctionExpression(init) && looksLikeComponent(init.body)) {
-      return varDecl.id.name
+      return [varDecl.id.name]
     }
 
     // export const Foo = forwardRef(...) / memo(...) / React.memo(...) / React.forwardRef(...)
@@ -132,18 +122,23 @@ function getReactComponent(node: types.Statement): string | undefined {
           callee.object.name === "React" &&
           types.isIdentifier(callee.property) &&
           ["forwardRef", "memo", "lazy"].includes(callee.property.name))
-      if (isWrapper) return varDecl.id.name
+      if (isWrapper) return [varDecl.id.name]
     }
   }
+
+  return []
 }
 
 /**
- * Check if a function body looks like a React component:
- * - Returns JSX
- * - Calls hooks (use*)
+ * Check if a function body looks like a React component by recursively
+ * searching for JSX returns or hook calls in any nested block.
  */
 function looksLikeComponent(body: types.BlockStatement): boolean {
-  return body.body.some((stmt) => {
+  return containsComponentSignals(body.body)
+}
+
+function containsComponentSignals(stmts: types.Statement[]): boolean {
+  for (const stmt of stmts) {
     // return <JSX /> or return (<JSX />)
     if (types.isReturnStatement(stmt)) {
       const arg = stmt.argument
@@ -155,7 +150,8 @@ function looksLikeComponent(body: types.BlockStatement): boolean {
         return true
       }
     }
-    // useXxx() calls
+
+    // useXxx() as expression statement
     if (
       types.isExpressionStatement(stmt) &&
       types.isCallExpression(stmt.expression) &&
@@ -164,6 +160,7 @@ function looksLikeComponent(body: types.BlockStatement): boolean {
     ) {
       return true
     }
+
     // const x = useXxx()
     if (
       types.isVariableDeclaration(stmt) &&
@@ -176,6 +173,43 @@ function looksLikeComponent(body: types.BlockStatement): boolean {
     ) {
       return true
     }
-    return false
-  })
+
+    // Recurse into if/else blocks
+    if (types.isIfStatement(stmt)) {
+      if (
+        types.isBlockStatement(stmt.consequent) &&
+        containsComponentSignals(stmt.consequent.body)
+      ) {
+        return true
+      }
+      if (stmt.alternate) {
+        if (
+          types.isBlockStatement(stmt.alternate) &&
+          containsComponentSignals(stmt.alternate.body)
+        ) {
+          return true
+        }
+        // else if chain
+        if (types.isIfStatement(stmt.alternate) && containsComponentSignals([stmt.alternate])) {
+          return true
+        }
+      }
+    }
+
+    // Recurse into switch cases
+    if (types.isSwitchStatement(stmt)) {
+      for (const c of stmt.cases) {
+        if (containsComponentSignals(c.consequent)) return true
+      }
+    }
+
+    // Recurse into try/catch/finally
+    if (types.isTryStatement(stmt)) {
+      if (containsComponentSignals(stmt.block.body)) return true
+      if (stmt.handler && containsComponentSignals(stmt.handler.body.body)) return true
+      if (stmt.finalizer && containsComponentSignals(stmt.finalizer.body)) return true
+    }
+  }
+
+  return false
 }

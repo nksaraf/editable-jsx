@@ -180,6 +180,19 @@ export { _Internal as PublicCard }`
     )
     expect(comps).toContain("PublicCard")
   })
+
+  test("export { A, B, C } — all PascalCase names returned", async () => {
+    const comps = await detect(
+      "multi-reexport.tsx",
+      `function Header() { return <header/> }
+function Footer() { return <footer/> }
+function Sidebar() { return <nav/> }
+export { Header, Footer, Sidebar }`
+    )
+    expect(comps).toContain("Header")
+    expect(comps).toContain("Footer")
+    expect(comps).toContain("Sidebar")
+  })
 })
 
 // ─── Class components ───────────────────────────────────────────────
@@ -254,6 +267,51 @@ describe("JSX fragments", () => {
       `export function List() { return <><li>A</li><li>B</li></> }`
     )
     expect(comps).toContain("List")
+  })
+})
+
+// ─── Conditional returns (JSX inside if/switch) ────────────────────
+
+describe("conditional returns", () => {
+  test("JSX return inside if block", async () => {
+    const comps = await detect(
+      "cond1.tsx",
+      `export function ConditionalInBlock({ show }) {
+  if (show) {
+    return <div className="tooltip">Visible</div>
+  }
+  return null
+}`
+    )
+    expect(comps).toContain("ConditionalInBlock")
+  })
+
+  test("JSX return inside else block", async () => {
+    const comps = await detect(
+      "cond2.tsx",
+      `export function ElseCase({ loading }) {
+  if (loading) {
+    return null
+  } else {
+    return <div>Loaded</div>
+  }
+}`
+    )
+    expect(comps).toContain("ElseCase")
+  })
+
+  test("JSX return inside switch case", async () => {
+    const comps = await detect(
+      "cond3.tsx",
+      `export function SwitchComponent({ variant }) {
+  switch (variant) {
+    case "a": return <div>A</div>
+    case "b": return <span>B</span>
+    default: return null
+  }
+}`
+    )
+    expect(comps).toContain("SwitchComponent")
   })
 })
 

@@ -27,13 +27,12 @@ export function editable({
         react(),
         babel({
           include: ["**/*.tsx", "**/*.jsx"],
-          exclude: [/node_modules/, /\.css$/],
+          exclude: [/node_modules/],
           plugins: [
             ...babelPlugins,
             [
               reactThreeEditorBabel,
               {
-                importPath: "react-dom/client",
                 replaceImports: {},
                 imports: {
                   path: "@editable-jsx/editable",

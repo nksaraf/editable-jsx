@@ -392,6 +392,9 @@ importers:
       '@babel/core':
         specifier: ^7.26.0
         version: 7.29.0
+      '@babel/preset-typescript':
+        specifier: ^7.26.0
+        version: 7.28.5(@babel/core@7.29.0)
       '@editable-jsx/babel':
         specifier: workspace:*
         version: link:../babel

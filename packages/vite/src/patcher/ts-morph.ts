@@ -75,16 +75,21 @@ function setAttribute(
 
   if (existing) {
     // Update existing attribute
-    if (typeof propValue === "object" && !Array.isArray(propValue)) {
-      existing
-        .getInitializer()!
-        .replaceWithText(`{${JSON.stringify(propValue)}}`)
+    const initializer = existing.getInitializer()
+    if (!initializer) {
+      // Boolean attribute (e.g. <div disabled />) — replace with value form
+      const propValueString = valueExpression(propValue)
+      if (propValueString) {
+        existing.replaceWithText(`${propPath}=${propValueString}`)
+      }
+    } else if (typeof propValue === "object" && !Array.isArray(propValue)) {
+      initializer.replaceWithText(`{${JSON.stringify(propValue)}}`)
     } else {
       const propValueString = valueExpression(propValue)
       if (!propValueString) {
         throw new Error(`Could not serialize prop value for "${propPath}"`)
       }
-      existing.getInitializer()!.replaceWithText(`${propValueString}`)
+      initializer.replaceWithText(`${propValueString}`)
     }
   } else {
     // Add new attribute (handles elements that didn't have this prop)
@@ -119,28 +124,12 @@ function setClassNamePart(
     }
   }
 
-  // Also check template literal spans (quasis)
-  for (const template of sourceFile.getDescendantsOfKind(
-    SyntaxKind.TemplateExpression
-  )) {
-    const head = template.getHead()
-    if (
-      isPos(head, { lineNumber: partLine, columnNumber: partColumn })
-    ) {
-      // Replace just the head text of the template
-      head.replaceWithText("`" + newValue)
-      return true
-    }
-    for (const span of template.getTemplateSpans()) {
-      const literal = span.getLiteral()
-      if (
-        isPos(literal, { lineNumber: partLine, columnNumber: partColumn })
-      ) {
-        literal.replaceWithText(newValue + "`")
-        return true
-      }
-    }
-  }
+  // Template literal quasis (TemplateHead/TemplateMiddle/TemplateTail) are NOT
+  // string literals — they have special token delimiters (backtick + ${).
+  // Replacing their text with replaceWithText produces syntactically broken output.
+  // Template className parts are not editable through this code path; the editor
+  // UI should show them as read-only. The Babel plugin's extractClassNameParts
+  // still extracts them for display, but surgical replacement is not supported.
 
   return false
 }
