@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 import "./App.css"
 
 import { EditableElement, Editor, EditorProvider } from "@editable-jsx/editable"
-import { client } from "@editable-jsx/vite/src/client"
+import { client } from "@editable-jsx/vite/client"
 import { EditorPanel } from "./EditorPanel"
 
 // ─── Devtools toggle ─────────────────────────────────────────────────

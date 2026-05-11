@@ -81,7 +81,7 @@ function extractClassNameParts(
 const isSourceAttr = (attr: t.Node) =>
   t.isJSXAttribute(attr) && attr.name.name === TRACE_ID
 
-function getName(v: t.LVal | null | undefined): string | null {
+function getName(v: t.LVal | t.Node | null | undefined): string | null {
   if (!v) return null
   if (t.isIdentifier(v)) return v.name
   // if (t.isObjectPattern(v)) return v.properties.map(getName).join(".")
@@ -239,6 +239,17 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
           return f(el)
         }
 
+        // Helper to sync the closing element name with the opening element
+        const syncClosingElement = (newName: t.JSXIdentifier | t.JSXMemberExpression) => {
+          const parent = path.parentPath
+          if (parent?.isJSXElement()) {
+            const closingElement = parent.node.closingElement
+            if (closingElement) {
+              closingElement.name = t.cloneNode(newName)
+            }
+          }
+        }
+
         if (t.isJSXIdentifier(node.name) && node.name.name.match(/^[a-z]/)) {
           let element = node.name
 
@@ -251,10 +262,12 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
               openingElement: node
             })
           ) {
-            node.name = t.jsxMemberExpression(
+            const newName = t.jsxMemberExpression(
               t.jsxIdentifier("editable"),
               t.jsxIdentifier(node.name.name)
             )
+            node.name = newName
+            syncClosingElement(newName)
           }
         } else if (
           t.isJSXIdentifier(node.name) &&
@@ -277,7 +290,9 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
                 t.jsxExpressionContainer(t.identifier(node.name.name))
               )
             )
-            node.name = t.jsxIdentifier("Editable")
+            const newName = t.jsxIdentifier("Editable")
+            node.name = newName
+            syncClosingElement(newName)
           }
         } else if (
           t.isJSXMemberExpression(node.name) &&
@@ -306,7 +321,9 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
                   )
                 )
               )
-              node.name = t.jsxIdentifier("Editable")
+              const newName = t.jsxIdentifier("Editable")
+              node.name = newName
+              syncClosingElement(newName)
             }
           } else if (
             isEditableElement({
@@ -329,7 +346,9 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
                 )
               )
             )
-            node.name = t.jsxIdentifier("Editable")
+            const newName = t.jsxIdentifier("Editable")
+            node.name = newName
+            syncClosingElement(newName)
           }
         }
 

@@ -1,23 +1,17 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "pipeline": {
-    "//#dev:link": {
-      "cache": false
-    },
-
+  "tasks": {
     "dev": {
-      "dependsOn": ["//#dev:link"],
-      "cache": false
+      "cache": false,
+      "persistent": true
     },
-
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "*/dist/**"],
-      "outputMode": "new-only"
+      "outputs": ["dist/**"],
+      "outputLogs": "new-only"
     },
-
     "test": {
-      "dependsOn": ["^test"],
+      "dependsOn": ["^build"],
       "outputs": [],
       "inputs": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.ts", "test/**/*.tsx"]
     }

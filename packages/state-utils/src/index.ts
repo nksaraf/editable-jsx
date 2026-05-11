@@ -22,6 +22,7 @@ export type EditPatchActionType =
   | "insertElement"
   | "deleteElement"
   | "updateAttribute"
+  | "updateClassNamePart"
 
 export type EditPatch<V = {}> = {
   source: JSXSource

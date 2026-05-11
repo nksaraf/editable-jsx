@@ -1,51 +1,11 @@
 import { PluginItem, types as t } from "@babel/core"
 import { JSXElementType, reactThreeEditorBabel } from "@editable-jsx/babel"
+import babel from "@rolldown/plugin-babel"
 import react from "@vitejs/plugin-react"
 import { editor } from "./server"
 
-const transformElements = [
-  "mesh",
-  "group",
-  "directionalLight",
-  "meshStandardMaterial",
-  "meshBasicMaterial",
-  "pointLight",
-  "ambientLight",
-  "spotLight",
-  "primitive",
-  "points"
-]
-
-let shouldEdit = (node: JSXElementType) => {
+let shouldEdit = (_node: JSXElementType) => {
   return true
-  let isEditableComponent = (node: t.JSXOpeningElement) =>
-    node.attributes.some(
-      (attr) =>
-        t.isJSXAttribute(attr) &&
-        (attr.name.name === "position" ||
-          attr.name.name === "rotation" ||
-          attr.name.name === "scale" ||
-          attr.name.name === "name")
-    ) ||
-    (t.isJSXIdentifier(node.name) &&
-      ["OrbitControls", "Physics"].includes(node.name.name)) ||
-    (t.isJSXIdentifier(node.name) &&
-      (node.name.name.endsWith("Material") ||
-        node.name.name.endsWith("Geometry"))) ||
-    (t.isJSXMemberExpression(node.name) &&
-      (node.name.property.name.endsWith("Material") ||
-        node.name.property.name.endsWith("Geometry")))
-
-  switch (node.type) {
-    case "primitive":
-      return true
-    case "namespaced-primitive":
-      return true
-    case "component":
-      return isEditableComponent(node.openingElement)
-    case "namespaced-component":
-      return isEditableComponent(node.openingElement)
-  }
 }
 
 export type PluginOptions = {
@@ -64,28 +24,26 @@ export function editable({
   return enabled
     ? [
         editor(),
-        react({
-          babel: {
-            plugins: [
-              ...babelPlugins,
-              [
-                reactThreeEditorBabel,
-                {
-                  importPath: "react-dom/client",
-                  replaceImports: {},
-                  imports: {
-                    path: "@editable-jsx/editable",
-                    imports: ["editable", "Editable"]
-                  },
-                  isEditable
-                }
-              ]
+        react(),
+        babel({
+          include: ["**/*.tsx", "**/*.jsx"],
+          exclude: [/node_modules/, /\.css$/],
+          plugins: [
+            ...babelPlugins,
+            [
+              reactThreeEditorBabel,
+              {
+                importPath: "react-dom/client",
+                replaceImports: {},
+                imports: {
+                  path: "@editable-jsx/editable",
+                  imports: ["editable", "Editable"]
+                },
+                isEditable
+              }
             ]
-          }
+          ]
         })
       ]
     : [react()]
 }
-
-/** @deprecated Use `editable()` instead */
-export const r3f = editable

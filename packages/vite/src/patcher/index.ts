@@ -1,5 +1,5 @@
 import { EditPatch } from "@editable-jsx/state"
-import { readFile, writeFile } from "fs-extra"
+import { readFileSync, writeFileSync } from "node:fs"
 import { filesToSkipOnHmr } from "../server/hmr"
 import { tsMorphPatcher } from "./ts-morph"
 
@@ -11,7 +11,7 @@ const groupPatchesByFileName = (patches: EditPatch[]) => {
 }
 
 async function applyFilePatches(fileName: string, patches: EditPatch[]) {
-  let code = (await readFile(fileName)).toString()
+  let code = readFileSync(fileName, "utf-8")
 
   code = await tsMorphPatcher(
     fileName,
@@ -22,14 +22,10 @@ async function applyFilePatches(fileName: string, patches: EditPatch[]) {
         p.action_type === "updateClassNamePart"
     )
   )
-  // code = await recastPatcher(
-  //   fileName,
-  //   code,
-  //   patches.filter((p) => p.action_type !== "updateAttribute")
-  // )
+
   // Tell HMR to skip this file — we already applied the changes in the browser
   filesToSkipOnHmr.set(fileName, { skip: true, timeout: null })
-  await writeFile(fileName, code)
+  writeFileSync(fileName, code)
 }
 
 export async function applyPatches(data: EditPatch[]) {

@@ -1,12 +1,10 @@
 import { EditPatch } from "@editable-jsx/state"
 import formidable from "formidable"
-import { existsSync } from "fs"
-import { moveSync, removeSync } from "fs-extra"
-import { resolve } from "path"
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs"
+import { dirname, resolve } from "node:path"
 import { ViteDevServer } from "vite"
-import { createRPCServer } from "vite-dev-rpc"
 import { applyPatches } from "../patcher"
-import { RpcClientFunctions, RpcServerFunctions, ServerOptions } from "../types"
+import { ServerOptions } from "../types"
 import { listComponents } from "./components"
 
 const configureMiddlewares = (server: ViteDevServer) => {
@@ -26,11 +24,15 @@ const configureMiddlewares = (server: ViteDevServer) => {
         const texturepath = `public/textures/${decodeURIComponent(
           req.url!.slice(1)
         )}`
+
+        // Ensure target directory exists
+        mkdirSync(dirname(texturepath), { recursive: true })
+
         if (existsSync(texturepath)) {
-          removeSync(texturepath)
+          rmSync(texturepath)
         }
 
-        moveSync((files as any)["file"]!.filepath, texturepath)
+        renameSync((files as any)["file"]!.filepath, texturepath)
 
         resolve(
           JSON.stringify(
@@ -49,39 +51,42 @@ const configureMiddlewares = (server: ViteDevServer) => {
 
 export const configureServer = (options: ServerOptions) => {
   return (server: ViteDevServer) => {
-    // This is where recieve the changes from the client and apply them to the files
-    createRPCServer<RpcClientFunctions, RpcServerFunctions>(
-      "react-three-editor",
-      server.ws,
-      {
-        async save(data: EditPatch | EditPatch[]) {
-          if (!data) {
-            throw new Error(`no data`)
-          }
-          if (!Array.isArray(data)) {
-            data = [data]
-          }
-          await applyPatches(data)
-        },
-        async initializeComponentsWatcher() {
-          try {
-            const componentsDir = resolve(
-              process.cwd(),
-              "src",
-              "components",
-              "**/*.{tsx,jsx}"
-            )
-            return await listComponents(componentsDir)
-          } catch (error) {
-            console.log("something went wrong while initializing the watcher")
-            return []
-          }
-          // server.watcher.add(componentsDir)
+    // Use Vite 5+ HMR channel API (server.hot) instead of deprecated server.ws
+    server.hot.on("editable-jsx:save", async (data: EditPatch | EditPatch[], client) => {
+      try {
+        if (!data) {
+          throw new Error("no data")
         }
+        if (!Array.isArray(data)) {
+          data = [data]
+        }
+        await applyPatches(data)
+        client.send("editable-jsx:save:result", { success: true })
+      } catch (error: any) {
+        client.send("editable-jsx:save:result", {
+          success: false,
+          error: error.message
+        })
       }
-    )
+    })
 
-    // This is so that we can expose helper endpoints through which client can work with the fs
+    server.hot.on("editable-jsx:components", async (_data: any, client) => {
+      try {
+        const componentsDir = resolve(
+          process.cwd(),
+          "src",
+          "components",
+          "**/*.{tsx,jsx}"
+        )
+        const components = await listComponents(componentsDir)
+        client.send("editable-jsx:components:result", components)
+      } catch (error) {
+        console.log("something went wrong while initializing the watcher")
+        client.send("editable-jsx:components:result", [])
+      }
+    })
+
+    // Expose helper endpoints for client filesystem operations
     configureMiddlewares(server)
   }
 }
