@@ -30,7 +30,6 @@ let findElement = (
   // }
 
   for (let x of sourceFile.getDescendantsOfKind(SyntaxKind.JsxOpeningElement)) {
-    console.log(x.getText())
     if (isPos(x, pos)) {
       return x
     }
@@ -69,24 +68,81 @@ function setAttribute(
   propPath: string,
   propValue: any
 ) {
-  for (var attribute of el.getDescendantsOfKind(SyntaxKind.JsxAttribute)) {
-    if (attribute.compilerNode.name.text === propPath) {
-      if (typeof propValue === "object" && !Array.isArray(propValue)) {
-        // set attribute value to 0.1
-        attribute
-          .getInitializer()!
-          .replaceWithText(`{${JSON.stringify(propValue)}}`)
-      } else {
-        const propValueString = valueExpression(propValue)
-        if (!propValueString) {
-          throw new Error(`Could not parse prop value`)
-        }
+  // Find existing attribute
+  const existing = el
+    .getDescendantsOfKind(SyntaxKind.JsxAttribute)
+    .find((a) => a.compilerNode.name.text === propPath)
 
-        attribute.getInitializer()!.replaceWithText(`${propValueString}`)
+  if (existing) {
+    // Update existing attribute
+    if (typeof propValue === "object" && !Array.isArray(propValue)) {
+      existing
+        .getInitializer()!
+        .replaceWithText(`{${JSON.stringify(propValue)}}`)
+    } else {
+      const propValueString = valueExpression(propValue)
+      if (!propValueString) {
+        throw new Error(`Could not serialize prop value for "${propPath}"`)
       }
-      // set attribute value to 0.1
+      existing.getInitializer()!.replaceWithText(`${propValueString}`)
+    }
+  } else {
+    // Add new attribute (handles elements that didn't have this prop)
+    const propValueString = valueExpression(propValue)
+    if (propValueString) {
+      el.addAttribute({
+        name: propPath,
+        initializer: propValueString
+      })
     }
   }
+}
+
+/**
+ * Modify a specific string literal within a className expression.
+ * Used when className is `cn("base", active && "conditional")` — we need to
+ * find the exact StringLiteral at the given position and replace its content.
+ */
+function setClassNamePart(
+  sourceFile: SourceFile,
+  partLine: number,
+  partColumn: number,
+  newValue: string
+) {
+  // Find the string literal at the given position
+  for (const literal of sourceFile.getDescendantsOfKind(
+    SyntaxKind.StringLiteral
+  )) {
+    if (isPos(literal, { lineNumber: partLine, columnNumber: partColumn })) {
+      literal.replaceWithText(`"${newValue}"`)
+      return true
+    }
+  }
+
+  // Also check template literal spans (quasis)
+  for (const template of sourceFile.getDescendantsOfKind(
+    SyntaxKind.TemplateExpression
+  )) {
+    const head = template.getHead()
+    if (
+      isPos(head, { lineNumber: partLine, columnNumber: partColumn })
+    ) {
+      // Replace just the head text of the template
+      head.replaceWithText("`" + newValue)
+      return true
+    }
+    for (const span of template.getTemplateSpans()) {
+      const literal = span.getLiteral()
+      if (
+        isPos(literal, { lineNumber: partLine, columnNumber: partColumn })
+      ) {
+        literal.replaceWithText(newValue + "`")
+        return true
+      }
+    }
+  }
+
+  return false
 }
 
 export async function tsMorphPatcher(
@@ -105,16 +161,32 @@ export async function tsMorphPatcher(
   sourceFile?.replaceWithText(code)
 
   patches.forEach((patch) => {
-    const { action_type, source, value } = patch
+    const { action_type, source, value } = patch as any
     if (action_type === "updateAttribute") {
-      console.log("setting", value, patches[0].source)
-      let el = findElement(sourceFile, patches[0].source)
+      let el = findElement(sourceFile, source)
       if (!el) {
-        throw new Error(`Could not find element`)
+        console.error(
+          `Could not find element at ${source.fileName}:${source.lineNumber}:${source.columnNumber}`
+        )
+        return
       }
       Object.entries(value).forEach(([propPath, propValue]) => {
         setAttribute(el!, propPath, propValue)
       })
+    } else if (action_type === "updateClassNamePart") {
+      // Modify a specific string literal within a className expression
+      const { partLine, partColumn, newValue } = value as {
+        partLine: number
+        partColumn: number
+        newValue: string
+      }
+      if (
+        !setClassNamePart(sourceFile, partLine, partColumn, newValue)
+      ) {
+        console.error(
+          `Could not find className part at ${source.fileName}:${partLine}:${partColumn}`
+        )
+      }
     }
   })
 

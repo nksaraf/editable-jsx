@@ -55,9 +55,9 @@ export type PluginOptions = {
   enabled?: boolean
 }
 
-export function r3f({
+export function editable({
   babelPlugins = [],
-  editable = shouldEdit,
+  editable: isEditable = shouldEdit,
   enabled = true,
   componentsDir = "src/components"
 }: PluginOptions = {}) {
@@ -72,19 +72,12 @@ export function r3f({
                 reactThreeEditorBabel,
                 {
                   importPath: "react-dom/client",
-                  replaceImports: {
-                    // "@react-three/fiber": "@react-three/editor/fiber"
-                  },
+                  replaceImports: {},
                   imports: {
                     path: "@editable-jsx/editable",
-                    imports: [
-                      "editable",
-                      "Editable"
-                      // "useEditorFrame",
-                      // "useEditorUpdate"
-                    ]
+                    imports: ["editable", "Editable"]
                   },
-                  isEditable: editable
+                  isEditable
                 }
               ]
             ]
@@ -93,3 +86,6 @@ export function r3f({
       ]
     : [react()]
 }
+
+/** @deprecated Use `editable()` instead */
+export const r3f = editable

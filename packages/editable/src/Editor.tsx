@@ -99,6 +99,9 @@ export class Editor<T extends EditableElement = EditableElement>
 
   rootId: string
 
+  /** Counter for assigning unique indices to root-level elements */
+  #rootIndexCounter = 0
+
   /**
    * state machine that controls the editor
    */
@@ -171,7 +174,9 @@ export class Editor<T extends EditableElement = EditableElement>
     this.panels = new PanelManager(this.settings)
 
     this.loader = new ComponentLoader(this.client)
-    this.loader.initialize()
+    if (this.client) {
+      this.loader.initialize()
+    }
 
     // initialize root to nothing
     this.rootId = ""
@@ -245,6 +250,10 @@ export class Editor<T extends EditableElement = EditableElement>
   }
 
   async saveDiff(diff: EditPatch) {
+    if (!this.client) {
+      console.warn("[editable-jsx] No RPC client configured — cannot save to source")
+      return
+    }
     await this.client.save(diff)
   }
 
@@ -348,6 +357,10 @@ export class Editor<T extends EditableElement = EditableElement>
       })
     } else {
       if (element.id !== undefined) {
+        // Assign unique index to root-level elements so treeId is always defined
+        if (element.index === undefined) {
+          element.index = `${this.#rootIndexCounter++}`
+        }
         this?.store?.setState((el) => ({
           elements: {
             ...el.elements,

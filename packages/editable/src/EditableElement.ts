@@ -436,25 +436,33 @@ export class EditableElement<
   }
 
   async save() {
+    // Collect the prop keys being saved so we can clear overrides after
+    const savedPropKeys: string[] = []
     let diffs = Object.values(this.changes).map(
-      ({ _source, ...value }) =>
-        ({
+      ({ _source, ...value }) => {
+        savedPropKeys.push(...Object.keys(value))
+        return {
           action_type: "updateAttribute",
           value,
           source: _source
-        } satisfies EditPatch)
+        } satisfies EditPatch
+      }
     )
 
     try {
-      console.log(await this.editor.save(diffs))
+      await this.editor.save(diffs)
       this.changes = {}
       this.changed = false
+      // Clear the mutable props overrides for saved keys.
+      // The source file now has these values, so on next render
+      // update() will read them from the JSX source props via HMR.
+      for (const key of savedPropKeys) {
+        delete this.props[key]
+      }
     } catch (e: any) {
       toast.error("Error saving: " + e.message)
       console.error(e)
     }
-
-    // this.openInEditor()
   }
 
   async openInEditor() {

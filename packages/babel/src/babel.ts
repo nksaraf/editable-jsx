@@ -11,6 +11,73 @@ import { JSXElementType } from "./types"
 const TRACE_ID = "_source"
 const FILE_NAME_VAR = "_jsxFileName"
 
+/**
+ * Extract editable string literal parts from a className expression.
+ * Given `cn("base-classes", active && "conditional-classes")`, this returns:
+ * [
+ *   { value: "base-classes", line: 5, column: 8, type: "static" },
+ *   { value: "conditional-classes", line: 5, column: 30, type: "conditional" }
+ * ]
+ */
+function extractClassNameParts(
+  expr: t.Expression
+): Array<{ value: string; line: number; column: number; type: string }> {
+  const parts: Array<{
+    value: string
+    line: number
+    column: number
+    type: string
+  }> = []
+
+  function visit(node: t.Node, context: string) {
+    if (t.isStringLiteral(node) && node.loc) {
+      parts.push({
+        value: node.value,
+        line: node.loc.start.line,
+        column: node.loc.start.column + 1, // 1-based to match _source convention
+        type: context
+      })
+    } else if (t.isTemplateLiteral(node)) {
+      // Template literal: extract the static quasis
+      for (const quasi of node.quasis) {
+        if (quasi.value.raw.trim() && quasi.loc) {
+          parts.push({
+            value: quasi.value.raw.trim(),
+            line: quasi.loc.start.line,
+            column: quasi.loc.start.column + 1,
+            type: "template"
+          })
+        }
+      }
+    } else if (t.isCallExpression(node)) {
+      // cn("base", condition && "conditional") — visit each argument
+      for (const arg of node.arguments) {
+        if (t.isExpression(arg)) {
+          visit(arg, "static")
+        }
+      }
+    } else if (t.isLogicalExpression(node) && node.operator === "&&") {
+      // condition && "classes"
+      visit(node.right, "conditional")
+    } else if (t.isLogicalExpression(node) && node.operator === "||") {
+      visit(node.left, "fallback")
+      visit(node.right, "fallback")
+    } else if (t.isConditionalExpression(node)) {
+      // condition ? "a" : "b"
+      visit(node.consequent, "conditional")
+      visit(node.alternate, "conditional")
+    } else if (t.isArrayExpression(node)) {
+      // ["base", condition && "conditional"]
+      for (const el of node.elements) {
+        if (el && t.isExpression(el)) visit(el, "static")
+      }
+    }
+  }
+
+  visit(expr, "static")
+  return parts
+}
+
 const isSourceAttr = (attr: t.Node) =>
   t.isJSXAttribute(attr) && attr.name.name === TRACE_ID
 
@@ -50,7 +117,13 @@ const makeTrace = (
   { line, column }: { line: number; column: number },
   componentName: string | null,
   moduleName: string,
-  elementName: string
+  elementName: string,
+  classNameParts?: Array<{
+    value: string
+    line: number
+    column: number
+    type: string
+  }>
 ) => {
   const fileLineLiteral = createNodeFromNullish(line, t.numericLiteral)
   const moduleNameLiteral = createNodeFromNullish(moduleName, t.stringLiteral)
@@ -64,7 +137,7 @@ const makeTrace = (
     t.numericLiteral(c + 1)
   )
 
-  return template.expression.ast`{
+  const baseProps: any = template.expression.ast`{
       fileName: ${fileNameIdentifier},
       lineNumber: ${fileLineLiteral},
       columnNumber: ${fileColumnLiteral},
@@ -72,6 +145,37 @@ const makeTrace = (
       componentName: ${componentNameLiteral},
       elementName: ${elementNameLiteral}
     }`
+
+  // Add classNameParts if className uses an expression
+  if (classNameParts && classNameParts.length > 0) {
+    const partsArray = t.arrayExpression(
+      classNameParts.map((part) =>
+        t.objectExpression([
+          t.objectProperty(
+            t.identifier("value"),
+            t.stringLiteral(part.value)
+          ),
+          t.objectProperty(
+            t.identifier("line"),
+            t.numericLiteral(part.line)
+          ),
+          t.objectProperty(
+            t.identifier("column"),
+            t.numericLiteral(part.column)
+          ),
+          t.objectProperty(
+            t.identifier("type"),
+            t.stringLiteral(part.type)
+          )
+        ])
+      )
+    )
+    baseProps.properties.push(
+      t.objectProperty(t.identifier("classNameParts"), partsArray)
+    )
+  }
+
+  return baseProps
 }
 
 export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
@@ -239,6 +343,20 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
           })
         }
 
+        // Extract className expression parts if className is a JSX expression (not a simple string)
+        let classNameParts: ReturnType<typeof extractClassNameParts> | undefined
+        const classNameAttr = node.attributes.find(
+          (attr): attr is t.JSXAttribute =>
+            t.isJSXAttribute(attr) && attr.name.name === "className"
+        )
+        if (
+          classNameAttr?.value &&
+          t.isJSXExpressionContainer(classNameAttr.value) &&
+          t.isExpression(classNameAttr.value.expression)
+        ) {
+          classNameParts = extractClassNameParts(classNameAttr.value.expression)
+        }
+
         node.attributes.push(
           t.jsxAttribute(
             t.jsxIdentifier(TRACE_ID),
@@ -248,7 +366,8 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
                 node.loc.start,
                 componentName ?? null,
                 basename(state.filename!, extname(state.filename!)),
-                elementName!
+                elementName!,
+                classNameParts
               )
             )
           )
