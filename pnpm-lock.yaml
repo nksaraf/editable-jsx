@@ -398,6 +398,9 @@ importers:
       '@editable-jsx/babel':
         specifier: workspace:*
         version: link:../babel
+      '@editable-jsx/editable':
+        specifier: workspace:*
+        version: link:../editable
       '@editable-jsx/state':
         specifier: workspace:*
         version: link:../state-utils

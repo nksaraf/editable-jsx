@@ -19,6 +19,9 @@
     },
     "./client": {
       "import": "./dist/client.js"
+    },
+    "./editor": {
+      "import": "./dist/editor.js"
     }
   },
   "files": [
@@ -29,12 +32,14 @@
   "license": "MIT",
   "sideEffects": false,
   "scripts": {
-    "build": "tsup"
+    "build": "tsup",
+    "test": "bun test"
   },
   "dependencies": {
     "@babel/core": "^7.26.0",
     "@babel/preset-typescript": "^7.26.0",
     "@editable-jsx/babel": "workspace:*",
+    "@editable-jsx/editable": "workspace:*",
     "@editable-jsx/state": "workspace:*",
     "@rolldown/plugin-babel": "^0.2.2",
     "@vitejs/plugin-react": "^6.0.1",
