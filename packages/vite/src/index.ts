@@ -3,6 +3,8 @@ import { JSXElementType, reactThreeEditorBabel } from "@editable-jsx/babel"
 import babel from "@rolldown/plugin-babel"
 import react from "@vitejs/plugin-react"
 import type { PluginOption } from "vite"
+
+type FilterPattern = string | RegExp | (string | RegExp)[]
 import { editor } from "./server"
 
 let shouldEdit = (_node: JSXElementType) => {
@@ -20,6 +22,16 @@ export type PluginOptions = {
    * @default true
    */
   react?: boolean
+  /**
+   * Glob/regex patterns for files to include in the Babel transform.
+   * @default ["**\/*.tsx", "**\/*.jsx"]
+   */
+  include?: FilterPattern
+  /**
+   * Glob/regex patterns for files to exclude from the Babel transform.
+   * @default [/node_modules/]
+   */
+  exclude?: FilterPattern
 }
 
 /**
@@ -36,7 +48,9 @@ export function editable({
   editable: isEditable = shouldEdit,
   enabled = true,
   componentsDir = "src/components",
-  react: includeReact = true
+  react: includeReact = true,
+  include: userInclude,
+  exclude: userExclude
 }: PluginOptions = {}): PluginOption[] {
   if (!enabled) {
     return includeReact ? [react()] : []
@@ -50,8 +64,8 @@ export function editable({
 
   plugins.push(
     babel({
-      include: ["**/*.tsx", "**/*.jsx"],
-      exclude: [/node_modules/],
+      include: userInclude ?? ["**/*.tsx", "**/*.jsx"],
+      exclude: userExclude ?? [/node_modules/],
       plugins: [
         ...babelPlugins,
         [

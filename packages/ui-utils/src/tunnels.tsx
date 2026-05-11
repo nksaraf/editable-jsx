@@ -1,6 +1,6 @@
 import { PropsWithChildren, ReactNode, useId, useLayoutEffect } from "react"
 import tunnel from "tunnel-rat"
-import create, { UseBoundStore as Store } from "zustand"
+import { create, type UseBoundStore as Store, type StoreApi } from "zustand"
 
 export type TunnelsStateType = Record<
   string,
@@ -13,7 +13,7 @@ export type TunnelsStateType = Record<
 export type MultiTunnel = {
   In: (props: PropsWithChildren<{ id?: string }>) => JSX.Element
   Out: (props: { fallback?: ReactNode }) => JSX.Element
-  useTunnels: Store<TunnelsStateType>
+  useTunnels: Store<StoreApi<TunnelsStateType>>
 }
 
 export function createMultiTunnel(): MultiTunnel {

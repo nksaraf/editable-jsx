@@ -1,17 +1,12 @@
 import { levaStore } from "leva"
 import { DataInput, StoreType } from "leva/dist/declarations/src/types"
-import create, {
-  GetState,
-  SetState,
-  UseBoundStore as Store,
-  UseBoundStore
-} from "zustand"
+import { create, type StoreApi, type UseBoundStore } from "zustand"
 
 export { LevaInputs as InputTypes, levaStore as defaultStore } from "leva"
 export type { StoreApi, UseBoundStore as Store } from "zustand"
 
 export type ControlledStore = Omit<StoreType, "useStore"> & {
-  useStore: UseBoundStore<{ data: { [key: string]: DataInput } }>
+  useStore: UseBoundStore<StoreApi<{ data: { [key: string]: DataInput } }>>
 }
 
 export const createControlledStore = (): ControlledStore => {
@@ -19,7 +14,7 @@ export const createControlledStore = (): ControlledStore => {
 }
 export function createStore<T extends object>(
   name: string,
-  fn: (set: SetState<T>, get: GetState<T>) => T
-): Store<T> {
-  return create(fn)
+  fn: (set: StoreApi<T>["setState"], get: StoreApi<T>["getState"]) => T
+): UseBoundStore<StoreApi<T>> {
+  return create<T>(fn as any)
 }

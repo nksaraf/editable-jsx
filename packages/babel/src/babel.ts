@@ -393,7 +393,9 @@ export const reactThreeEditorBabel = (api: ConfigAPI): PluginObj => {
         )
       },
       CallExpression(path, state) {
-        // check if we are calling `useFrame` and replace it with `useEditorFrame` and use the name of the parent component as the first argument
+        // R3F-specific: rewrite useFrame → useEditorFrame, useUpdate → useEditorUpdate
+        // Only active when `r3f: true` is passed in plugin options (off by default)
+        if (!(state.opts as any)["r3f"]) return
 
         const { node } = path
         if (
