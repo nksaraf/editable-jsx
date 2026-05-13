@@ -55,6 +55,10 @@ export function cssEditorAstro(
         }
 
         updateConfig({
+          // Enable Astro's built-in source annotations on every element.
+          // This adds data-astro-source-file and data-astro-source-loc
+          // attributes in dev mode — our editor uses these for text save.
+          devToolbar: { enabled: true },
           vite: {
             plugins: [cssEditor({ ...editorOptions, include })],
           },

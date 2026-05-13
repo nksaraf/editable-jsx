@@ -262,46 +262,53 @@ function calculateSpecificity(selector: string): number {
 }
 
 /**
- * Resolve the source .astro file for a DOM element by mapping its
- * data-astro-cid-xxx attribute to a stylesheet's data-vite-dev-id.
+ * Resolve the source file and location for a DOM element.
  *
- * Astro scopes styles by adding [data-astro-cid-xxx] selectors.
- * We find which <style> tag contains that CID in its CSS rules,
- * then read its data-vite-dev-id to get the source file path.
+ * Strategy 1: Astro's annotateSourceFile injects `data-astro-source-file`
+ * and `data-astro-source-loc` attributes on every element in dev mode.
+ * This is the most reliable source — exact file path and line:col.
+ *
+ * Strategy 2 (fallback): Map the element's data-astro-cid-xxx attribute
+ * to a <style> tag's data-vite-dev-id. Less precise (file only, no position).
  */
-function resolveAstroSourceFile(el: Element): string | null {
-  // Find the element's Astro CID attribute
-  let cidAttr: string | null = null
-  for (const attr of el.attributes) {
-    if (attr.name.startsWith("data-astro-cid-")) {
-      cidAttr = attr.name
-      break
-    }
+function resolveAstroSourceFile(el: Element): {
+  file: string
+  line: number
+  col: number
+} | null {
+  // Strategy 1: Astro's built-in source annotations
+  const sourceFile =
+    el.getAttribute("data-astro-source-file") ||
+    el.closest("[data-astro-source-file]")?.getAttribute("data-astro-source-file")
+
+  if (sourceFile) {
+    const sourceLoc =
+      el.getAttribute("data-astro-source-loc") ||
+      el.closest("[data-astro-source-loc]")?.getAttribute("data-astro-source-loc")
+    const [line, col] = sourceLoc ? sourceLoc.split(":").map(Number) : [0, 0]
+    return { file: sourceFile, line: line || 0, col: col || 0 }
   }
-  // Walk up if the element itself doesn't have a CID
-  if (!cidAttr) {
-    let parent = el.parentElement
-    while (parent) {
-      for (const attr of parent.attributes) {
-        if (attr.name.startsWith("data-astro-cid-")) {
-          cidAttr = attr.name
-          break
-        }
+
+  // Strategy 2: CID → style tag → data-vite-dev-id
+  let cidAttr: string | null = null
+  let current: Element | null = el
+  while (current) {
+    for (const attr of current.attributes) {
+      if (attr.name.startsWith("data-astro-cid-")) {
+        cidAttr = attr.name
+        break
       }
-      if (cidAttr) break
-      parent = parent.parentElement
     }
+    if (cidAttr) break
+    current = current.parentElement
   }
   if (!cidAttr) return null
 
-  // Find the <style> tag whose CSS references this CID
   const cidSelector = `[${cidAttr}]`
-  const styles = document.querySelectorAll("style[data-vite-dev-id]")
-  for (const style of styles) {
-    const css = style.textContent || ""
-    if (css.includes(cidSelector)) {
+  for (const style of document.querySelectorAll("style[data-vite-dev-id]")) {
+    if ((style.textContent || "").includes(cidSelector)) {
       const devId = style.getAttribute("data-vite-dev-id")!
-      return devId.split("?")[0]
+      return { file: devId.split("?")[0], line: 0, col: 0 }
     }
   }
   return null
@@ -713,16 +720,16 @@ export function renderInspector(
     const textInput = (info as any).__textInput as HTMLTextAreaElement | undefined
     const originalText = (info as any).__textOriginal as string | undefined
     if (textInput && originalText && textInput.value !== originalText) {
-      // Resolve source file via Astro CID → style tag → data-vite-dev-id
-      const sourceFile = resolveAstroSourceFile(el)
+      // Resolve source file via Astro annotations or CID fallback
+      const source = resolveAstroSourceFile(el)
 
-      if (sourceFile) {
+      if (source) {
         const patch: TextContentPatch = {
           action_type: "updateTextContent",
-          file: sourceFile,
+          file: source.file,
           textContent: {
-            line: 0,
-            col: 0,
+            line: source.line,
+            col: source.col,
             oldText: originalText,
             newText: textInput.value,
           },
