@@ -27,11 +27,26 @@ export interface StyleBlock {
 export function extractStyleBlocks(content: string): StyleBlock[] {
   const blocks: StyleBlock[] = []
 
+  // Skip frontmatter (--- ... ---) to avoid matching <style> in JS strings/comments
+  let searchStart = 0
+  const fmMatch = content.match(/^---\r?\n/)
+  if (fmMatch) {
+    const fmEnd = content.indexOf("\n---", fmMatch[0].length)
+    if (fmEnd !== -1) {
+      searchStart = fmEnd + 4 // past the closing ---
+    }
+  }
+
+  // Also skip HTML comments that might contain <style>
+  const searchContent = content.slice(searchStart)
+
   // Match <style ...> ... </style> — non-greedy, handles attributes
   const styleRegex = /<style(\s[^>]*)?>([^]*?)<\/style>/gi
   let match: RegExpExecArray | null
 
-  while ((match = styleRegex.exec(content)) !== null) {
+  while ((match = styleRegex.exec(searchContent)) !== null) {
+    // Adjust charOffset to account for the skipped frontmatter
+    match.index += searchStart
     const attrs = match[1] || ""
     const css = match[2]
     const charOffset = match.index

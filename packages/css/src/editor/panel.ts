@@ -31,6 +31,10 @@ export class EditorPanel {
   private dragging = false
   private dragOffset = { x: 0, y: 0 }
 
+  // Bound handlers for cleanup
+  private boundOnScroll: () => void
+  private boundOnResize: () => void
+
   constructor() {
     // Create shadow host
     this.host = document.createElement("div")
@@ -59,15 +63,11 @@ export class EditorPanel {
     // Create toggle button
     this.createToggleButton()
 
-    // Listen for scroll/resize to update overlays
-    window.addEventListener("scroll", () => this.domPicker?.updateOverlays(), {
-      passive: true,
-    })
-    window.addEventListener(
-      "resize",
-      () => this.domPicker?.updateOverlays(),
-      { passive: true },
-    )
+    // Listen for scroll/resize to update overlays (bound for cleanup)
+    this.boundOnScroll = () => this.domPicker?.updateOverlays()
+    this.boundOnResize = () => this.domPicker?.updateOverlays()
+    window.addEventListener("scroll", this.boundOnScroll, { passive: true })
+    window.addEventListener("resize", this.boundOnResize, { passive: true })
   }
 
   /**
@@ -135,6 +135,8 @@ export class EditorPanel {
    */
   destroy(): void {
     this.domPicker?.destroy()
+    window.removeEventListener("scroll", this.boundOnScroll)
+    window.removeEventListener("resize", this.boundOnResize)
     this.host.remove()
   }
 

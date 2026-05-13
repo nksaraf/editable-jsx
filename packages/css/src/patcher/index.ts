@@ -54,8 +54,13 @@ async function applyFilePatches(
     }
   }
 
-  // Tell HMR to skip this file — we already applied the changes
-  filesToSkipOnHmr.set(file, { skip: true, timeout: null })
+  // Tell HMR to skip this file — we already applied the changes.
+  // Auto-expire after 5s so a stale entry never permanently suppresses HMR.
+  const existing = filesToSkipOnHmr.get(file)
+  if (existing?.timeout) clearTimeout(existing.timeout)
+
+  const timeout = setTimeout(() => filesToSkipOnHmr.delete(file), 5000)
+  filesToSkipOnHmr.set(file, { skip: true, timeout })
   writeFileSync(file, content)
 }
 

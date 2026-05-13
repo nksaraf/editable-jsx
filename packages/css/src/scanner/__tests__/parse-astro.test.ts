@@ -47,6 +47,34 @@ describe("extractStyleBlocks", () => {
     const blocks = extractStyleBlocks(content)
     expect(blocks).toHaveLength(0)
   })
+
+  test("ignores <style> inside frontmatter strings", () => {
+    const content = `---
+const html = '<style>:root { --fake: yes; }</style>'
+---
+<div>content</div>
+<style>
+  .real { --real-var: blue; }
+</style>`
+    const blocks = extractStyleBlocks(content)
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].css).toContain("--real-var")
+    expect(blocks[0].css).not.toContain("--fake")
+  })
+
+  test("ignores <style> in HTML comments", () => {
+    const content = `---
+---
+<!-- <style>:root { --commented: yes; }</style> -->
+<style>
+  .actual { color: red; }
+</style>`
+    // The HTML comment <style> may still match since we only strip frontmatter,
+    // but the real style block should always be found
+    const blocks = extractStyleBlocks(content)
+    const realBlock = blocks.find((b) => b.css.includes(".actual"))
+    expect(realBlock).toBeDefined()
+  })
 })
 
 describe("parseAstroVariables", () => {

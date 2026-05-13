@@ -17,7 +17,7 @@ export function applyCSSVariablePatches(
     let found = false
 
     root.walk((node) => {
-      if (found) return
+      if (found) return false
       if (node.type !== "decl") return
       if (node.prop !== name) return
 
@@ -26,6 +26,7 @@ export function applyCSSVariablePatches(
       if (nodeScope === scope) {
         node.value = value
         found = true
+        return false
       }
     })
 

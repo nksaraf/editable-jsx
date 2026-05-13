@@ -316,18 +316,39 @@ function findVariableSource(varName: string): {
       const rules = sheet.cssRules
       if (!rules) continue
 
-      for (let j = 0; j < rules.length; j++) {
-        const rule = rules[j]
-        if (rule instanceof CSSStyleRule) {
-          for (let k = 0; k < rule.style.length; k++) {
-            if (rule.style[k] === varName) {
-              return { file, scope: rule.selectorText }
-            }
-          }
-        }
-      }
+      const result = findVarInRules(rules, varName)
+      if (result) return { file, scope: result }
     } catch {
       continue
+    }
+  }
+  return null
+}
+
+/**
+ * Recursively search CSS rules for a variable declaration.
+ * Returns the selector/scope string if found, null otherwise.
+ */
+function findVarInRules(rules: CSSRuleList, varName: string): string | null {
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i]
+
+    if (rule instanceof CSSStyleRule) {
+      for (let k = 0; k < rule.style.length; k++) {
+        if (rule.style[k] === varName) {
+          return rule.selectorText
+        }
+      }
+    } else if (
+      rule instanceof CSSMediaRule ||
+      rule instanceof CSSLayerBlockRule ||
+      ("cssRules" in rule && (rule as any).cssRules)
+    ) {
+      const nested = findVarInRules(
+        (rule as CSSGroupingRule).cssRules,
+        varName,
+      )
+      if (nested) return nested
     }
   }
   return null

@@ -16,6 +16,7 @@ export class VariableEditor {
   private states: Map<string, VariableState> = new Map()
   private filter: string = ""
   private onSave: (patches: CSSVariablePatch[]) => void
+  private lastManifest: CSSVariableManifest | null = null
 
   constructor(
     container: HTMLElement,
@@ -29,6 +30,7 @@ export class VariableEditor {
    * Render the variable editor with the given manifest.
    */
   render(manifest: CSSVariableManifest): void {
+    this.lastManifest = manifest
     this.container.textContent = ""
     this.states.clear()
 
@@ -259,6 +261,10 @@ export class VariableEditor {
           document.documentElement.style.removeProperty(state.variable.name)
         }
       }
+    }
+    // Re-render controls to reflect the reset values
+    if (this.lastManifest) {
+      this.render(this.lastManifest)
     }
   }
 
