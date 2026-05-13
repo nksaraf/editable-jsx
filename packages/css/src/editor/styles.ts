@@ -477,6 +477,42 @@ export const EDITOR_STYLES = /* css */ `
     text-decoration: line-through;
   }
 
+  /* ── Variable chip (inline var editor) ─────────────────── */
+
+  .var-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 4px;
+    color: #60a5fa;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+
+  .var-chip:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+
+  .var-chip.active {
+    background: rgba(59, 130, 246, 0.25);
+    border-color: #3b82f6;
+    color: #93c5fd;
+  }
+
+  .var-inline-editor {
+    margin-top: 6px;
+    padding: 8px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+  }
+
   /* ── Selection overlay ────────────────────────────────── */
 
   .css-editor-overlay {

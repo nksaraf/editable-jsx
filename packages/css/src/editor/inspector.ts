@@ -10,8 +10,20 @@
  * We use this to trace CSS rules back to source files for save-to-source.
  */
 
-import type { CSSPatch, CSSPropertyPatch, TextContentPatch } from "../types.js"
-import { isColorValue, toHexColor } from "./controls.js"
+import type {
+  CSSPatch,
+  CSSPropertyPatch,
+  CSSVariablePatch,
+  TextContentPatch,
+} from "../types.js"
+import {
+  createColorControl,
+  createSliderControl,
+  createTextControl,
+  inferControlType,
+  isColorValue,
+  toHexColor,
+} from "./controls.js"
 
 export interface InspectedRule {
   /** CSS selector text */
@@ -269,6 +281,58 @@ export interface PendingPropertyChange {
  * - Save button that writes changes back to source CSS files
  * - "Pick new" button to re-enter pick mode
  */
+/**
+ * Extract CSS variable name from a `var(--xxx)` or `var(--xxx, fallback)` value.
+ * Returns null if the value doesn't reference a CSS variable.
+ */
+function extractVarReference(value: string): string | null {
+  const match = value.match(/var\(\s*(--[\w-]+)/)
+  return match ? match[1] : null
+}
+
+/**
+ * Resolve a CSS variable to its current computed value.
+ */
+function resolveVariable(name: string): string {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim()
+}
+
+/**
+ * Find the source file and scope for a CSS variable by scanning stylesheets.
+ */
+function findVariableSource(varName: string): {
+  file: string | null
+  scope: string
+} | null {
+  for (let i = 0; i < document.styleSheets.length; i++) {
+    const sheet = document.styleSheets[i]
+    const owner = sheet.ownerNode as HTMLElement | null
+    const devId = owner?.getAttribute?.("data-vite-dev-id")
+    const file = devId ? devId.split("?")[0] : null
+
+    try {
+      const rules = sheet.cssRules
+      if (!rules) continue
+
+      for (let j = 0; j < rules.length; j++) {
+        const rule = rules[j]
+        if (rule instanceof CSSStyleRule) {
+          for (let k = 0; k < rule.style.length; k++) {
+            if (rule.style[k] === varName) {
+              return { file, scope: rule.selectorText }
+            }
+          }
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
 export function renderInspector(
   container: HTMLElement,
   el: Element,
@@ -278,6 +342,10 @@ export function renderInspector(
   container.textContent = ""
 
   const pendingChanges: PendingPropertyChange[] = []
+  const pendingVarChanges: Map<
+    string,
+    { name: string; value: string; file: string; scope: string }
+  > = new Map()
 
   // ── Element info bar ───────────────────────────────────
   const info = document.createElement("div")
@@ -390,52 +458,126 @@ export function renderInspector(
       const propName = document.createElement("span")
       propName.className = "rule-prop-name"
       propName.textContent = `${prop.name}:`
+      propRow.appendChild(propName)
 
-      // Color swatch for color values
-      if (isColorValue(prop.value)) {
-        const swatch = document.createElement("div")
-        swatch.style.cssText = `width:14px;height:14px;border-radius:3px;border:1px solid #334155;flex-shrink:0;background:${prop.value}`
-        propRow.appendChild(propName)
-        propRow.appendChild(swatch)
-      } else {
-        propRow.appendChild(propName)
-      }
+      // ── Check for var(--xxx) references ──────────────
+      const varRef = extractVarReference(prop.value)
 
-      const propValue = document.createElement("input")
-      propValue.className = "var-input"
-      propValue.style.fontSize = "11px"
-      propValue.value = prop.value
-      if (prop.overridden) {
-        propValue.style.textDecoration = "line-through"
-        propValue.style.color = "#475569"
-      }
+      if (varRef && !prop.overridden) {
+        // This property uses a CSS variable — render an inline variable editor
+        const resolvedValue = resolveVariable(varRef)
+        const varSource = findVariableSource(varRef)
 
-      propValue.addEventListener("change", () => {
-        // Live preview
-        ;(el as HTMLElement).style.setProperty(prop.name, propValue.value)
+        const varContainer = document.createElement("div")
+        varContainer.className = "var-control"
+        varContainer.style.cssText = "flex:1;min-width:0"
 
-        // Track as pending change
-        if (rule.sourceFile) {
-          // Remove previous change for same selector+property
-          const existing = pendingChanges.findIndex(
-            (c) => c.selector === rule.selector && c.property === prop.name,
-          )
-          if (existing !== -1) pendingChanges.splice(existing, 1)
+        // Variable chip — shows --var-name as a clickable badge
+        const varChip = document.createElement("button")
+        varChip.className = "var-chip"
+        varChip.textContent = varRef
+        varChip.title = `${prop.value} → ${resolvedValue}`
 
-          pendingChanges.push({
-            selector: rule.selector,
-            property: prop.name,
-            value: propValue.value,
-            sourceFile: rule.sourceFile,
-          })
+        // Resolved value swatch (for colors)
+        if (isColorValue(resolvedValue)) {
+          const swatch = document.createElement("div")
+          swatch.style.cssText = `width:14px;height:14px;border-radius:3px;border:1px solid #334155;flex-shrink:0;background:${resolvedValue}`
+          propRow.appendChild(swatch)
         }
 
-        // Update swatch if color
-        const swatch = propRow.querySelector("div[style*=background]") as HTMLElement
-        if (swatch) swatch.style.background = propValue.value
-      })
+        propRow.appendChild(varChip)
 
-      propRow.appendChild(propValue)
+        // Inline editor — initially hidden, opens on chip click
+        const inlineEditor = document.createElement("div")
+        inlineEditor.className = "var-inline-editor"
+        inlineEditor.style.display = "none"
+
+        const control = createControlForValue(varRef, resolvedValue, (newValue) => {
+          // Live preview — update the CSS variable globally
+          document.documentElement.style.setProperty(varRef, newValue)
+
+          // Update swatch
+          const sw = propRow.querySelector("div[style*=background]") as HTMLElement
+          if (sw) sw.style.background = newValue
+
+          // Track as variable change (not property change)
+          if (varSource?.file) {
+            pendingVarChanges.set(varRef, {
+              name: varRef,
+              value: newValue,
+              file: varSource.file,
+              scope: varSource.scope,
+            })
+          }
+        })
+        inlineEditor.appendChild(control)
+
+        // Toggle inline editor on chip click
+        varChip.addEventListener("click", (e) => {
+          e.stopPropagation()
+          const isOpen = inlineEditor.style.display !== "none"
+          inlineEditor.style.display = isOpen ? "none" : ""
+          varChip.classList.toggle("active", !isOpen)
+        })
+
+        // Source file hint under the editor
+        if (varSource?.file) {
+          const sourceHint = document.createElement("div")
+          sourceHint.style.cssText =
+            "font-size:10px;color:#475569;margin-top:2px;font-family:ui-monospace,monospace"
+          sourceHint.textContent = `${varSource.file.replace(/^.*\/src\//, "src/")} → ${varSource.scope}`
+          inlineEditor.appendChild(sourceHint)
+        }
+
+        propRow.appendChild(inlineEditor)
+      } else {
+        // Regular property — plain text input
+
+        // Color swatch for resolved color values
+        if (isColorValue(prop.value)) {
+          const swatch = document.createElement("div")
+          swatch.style.cssText = `width:14px;height:14px;border-radius:3px;border:1px solid #334155;flex-shrink:0;background:${prop.value}`
+          propRow.appendChild(swatch)
+        }
+
+        const propValue = document.createElement("input")
+        propValue.className = "var-input"
+        propValue.style.fontSize = "11px"
+        propValue.value = prop.value
+        if (prop.overridden) {
+          propValue.style.textDecoration = "line-through"
+          propValue.style.color = "#475569"
+        }
+
+        propValue.addEventListener("change", () => {
+          // Live preview
+          ;(el as HTMLElement).style.setProperty(prop.name, propValue.value)
+
+          // Track as pending change
+          if (rule.sourceFile) {
+            const existing = pendingChanges.findIndex(
+              (c) => c.selector === rule.selector && c.property === prop.name,
+            )
+            if (existing !== -1) pendingChanges.splice(existing, 1)
+
+            pendingChanges.push({
+              selector: rule.selector,
+              property: prop.name,
+              value: propValue.value,
+              sourceFile: rule.sourceFile,
+            })
+          }
+
+          // Update swatch if color
+          const swatch = propRow.querySelector(
+            "div[style*=background]",
+          ) as HTMLElement
+          if (swatch) swatch.style.background = propValue.value
+        })
+
+        propRow.appendChild(propValue)
+      }
+
       section.appendChild(propRow)
     }
 
@@ -485,6 +627,21 @@ export function renderInspector(
       patches.push(patch)
     }
 
+    // CSS variable patches (from inline var editors)
+    for (const [, change] of pendingVarChanges) {
+      const patch: CSSVariablePatch = {
+        action_type: "updateCSSVariable",
+        file: change.file,
+        variable: {
+          name: change.name,
+          value: change.value,
+          scope: change.scope,
+        },
+        styleBlockOffset: 0,
+      }
+      patches.push(patch)
+    }
+
     // Text content patch
     const textInput = (info as any).__textInput as HTMLTextAreaElement | undefined
     const originalText = (info as any).__textOriginal as string | undefined
@@ -524,6 +681,28 @@ export function renderInspector(
   saveBar.appendChild(saveInfo)
   saveBar.appendChild(saveActions)
   container.appendChild(saveBar)
+}
+
+// ── Variable control helpers ───────────────────────────────────────
+
+/**
+ * Create the appropriate control for a CSS variable value.
+ * Detects colors, numeric values, and falls back to text input.
+ */
+function createControlForValue(
+  name: string,
+  value: string,
+  onChange: (newValue: string) => void,
+): HTMLElement {
+  const type = inferControlType(name, value)
+  switch (type) {
+    case "color":
+      return createColorControl(value, onChange)
+    case "slider":
+      return createSliderControl(value, onChange)
+    default:
+      return createTextControl(value, onChange)
+  }
 }
 
 // ── Text content helpers ───────────────────────────────────────────
