@@ -261,6 +261,52 @@ function calculateSpecificity(selector: string): number {
   return ids * 10000 + classes * 100 + elements
 }
 
+/**
+ * Resolve the source .astro file for a DOM element by mapping its
+ * data-astro-cid-xxx attribute to a stylesheet's data-vite-dev-id.
+ *
+ * Astro scopes styles by adding [data-astro-cid-xxx] selectors.
+ * We find which <style> tag contains that CID in its CSS rules,
+ * then read its data-vite-dev-id to get the source file path.
+ */
+function resolveAstroSourceFile(el: Element): string | null {
+  // Find the element's Astro CID attribute
+  let cidAttr: string | null = null
+  for (const attr of el.attributes) {
+    if (attr.name.startsWith("data-astro-cid-")) {
+      cidAttr = attr.name
+      break
+    }
+  }
+  // Walk up if the element itself doesn't have a CID
+  if (!cidAttr) {
+    let parent = el.parentElement
+    while (parent) {
+      for (const attr of parent.attributes) {
+        if (attr.name.startsWith("data-astro-cid-")) {
+          cidAttr = attr.name
+          break
+        }
+      }
+      if (cidAttr) break
+      parent = parent.parentElement
+    }
+  }
+  if (!cidAttr) return null
+
+  // Find the <style> tag whose CSS references this CID
+  const cidSelector = `[${cidAttr}]`
+  const styles = document.querySelectorAll("style[data-vite-dev-id]")
+  for (const style of styles) {
+    const css = style.textContent || ""
+    if (css.includes(cidSelector)) {
+      const devId = style.getAttribute("data-vite-dev-id")!
+      return devId.split("?")[0]
+    }
+  }
+  return null
+}
+
 // ── Pending changes tracker ────────────────────────────────────────
 
 export interface PendingPropertyChange {
@@ -619,7 +665,7 @@ export function renderInspector(
   const saveBtn = document.createElement("button")
   saveBtn.className = "btn btn-primary"
   saveBtn.textContent = "Save to source"
-  saveBtn.addEventListener("click", () => {
+  saveBtn.addEventListener("click", async () => {
     const patches: CSSPatch[] = []
 
     // CSS property patches
@@ -667,24 +713,16 @@ export function renderInspector(
     const textInput = (info as any).__textInput as HTMLTextAreaElement | undefined
     const originalText = (info as any).__textOriginal as string | undefined
     if (textInput && originalText && textInput.value !== originalText) {
-      // We need the source file for this element
-      // Use data-astro-source-file if available, otherwise we can't save text
-      const sourceAttr =
-        el.getAttribute("data-astro-source-file") ||
-        el.closest("[data-astro-source-file]")?.getAttribute("data-astro-source-file")
+      // Resolve source file via Astro CID → style tag → data-vite-dev-id
+      const sourceFile = resolveAstroSourceFile(el)
 
-      if (sourceAttr) {
-        const locAttr =
-          el.getAttribute("data-astro-source-loc") ||
-          el.closest("[data-astro-source-loc]")?.getAttribute("data-astro-source-loc")
-        const [line, col] = locAttr ? locAttr.split(":").map(Number) : [0, 0]
-
+      if (sourceFile) {
         const patch: TextContentPatch = {
           action_type: "updateTextContent",
-          file: sourceAttr,
+          file: sourceFile,
           textContent: {
-            line: line || 0,
-            col: col || 0,
+            line: 0,
+            col: 0,
             oldText: originalText,
             newText: textInput.value,
           },
@@ -694,7 +732,22 @@ export function renderInspector(
     }
 
     if (patches.length > 0) {
-      onSave(patches)
+      await onSave(patches)
+      // Show feedback
+      saveBtn.textContent = "\u2713 Saved"
+      saveBtn.style.background = "#16a34a"
+      setTimeout(() => {
+        saveBtn.textContent = "Save to source"
+        saveBtn.style.background = ""
+      }, 2000)
+    } else {
+      // Nothing to save — show feedback
+      saveBtn.textContent = "No changes"
+      saveBtn.style.background = "#475569"
+      setTimeout(() => {
+        saveBtn.textContent = "Save to source"
+        saveBtn.style.background = ""
+      }, 1500)
     }
   })
 
