@@ -1,4 +1,4 @@
-import type { CSSVariableManifest, CSSVariablePatch } from "../types.js"
+import type { CSSPatch, CSSVariableManifest, CSSVariablePatch } from "../types.js"
 import { DOMPicker } from "./dom-picker.js"
 import { renderInspector } from "./inspector.js"
 import { EDITOR_STYLES } from "./styles.js"
@@ -292,13 +292,17 @@ export class EditorPanel {
   private onElementSelected(el: Element): void {
     if (!this.inspectContent) return
 
-    renderInspector(this.inspectContent, el, (selector, property, value) => {
-      // Save property change
-      // For now, just log — full save needs source mapping
-      console.log(
-        `[editable-css] Property changed: ${selector} { ${property}: ${value} }`,
-      )
-    })
+    renderInspector(
+      this.inspectContent,
+      el,
+      (patches) => this.handleSavePatches(patches),
+      () => {
+        // "Pick new" — re-enter pick mode
+        this.domPicker?.clearSelection()
+        this.domPicker?.activate()
+        this.renderInspectPrompt()
+      },
+    )
 
     // Switch to inspect tab if not already there
     if (this.activeTab !== "inspect") {
@@ -309,6 +313,19 @@ export class EditorPanel {
 
   private onElementDeselected(): void {
     this.renderInspectPrompt()
+  }
+
+  private async handleSavePatches(patches: CSSPatch[]): Promise<void> {
+    if (!this.client) {
+      console.error("[editable-css] No HMR client available")
+      return
+    }
+    try {
+      await this.client.save(patches)
+      console.log(`[editable-css] Saved ${patches.length} change(s) to source`)
+    } catch (err) {
+      console.error("[editable-css] Save failed:", err)
+    }
   }
 
   private async handleSave(patches: CSSVariablePatch[]): Promise<void> {

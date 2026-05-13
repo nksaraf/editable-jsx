@@ -57,6 +57,10 @@ export function applyCSSVariablePatches(
 
 /**
  * Apply CSS property patches (non-variable properties like `background`, `color`, etc.)
+ *
+ * Selector matching is flexible:
+ * - Exact match first (walkRules)
+ * - If not found, tries normalized comparison (collapse whitespace, strip Astro scoping)
  */
 export function applyCSSPropertyPatches(
   css: string,
@@ -69,6 +73,7 @@ export function applyCSSPropertyPatches(
     const { selector, name, value } = patch.property
     let found = false
 
+    // Try exact match first
     root.walkRules(selector, (rule) => {
       if (found) return
       rule.walkDecls(name, (decl) => {
@@ -77,17 +82,38 @@ export function applyCSSPropertyPatches(
       })
     })
 
+    // Fallback: normalized selector comparison
     if (!found) {
-      // Property not found — add to the matching rule
-      root.walkRules(selector, (rule) => {
+      const normalizedTarget = normalizeSelector(selector)
+      root.walkRules((rule) => {
         if (found) return
-        rule.append(postcss.decl({ prop: name, value }))
-        found = true
+        if (normalizeSelector(rule.selector) === normalizedTarget) {
+          rule.walkDecls(name, (decl) => {
+            decl.value = value
+            found = true
+          })
+          if (!found) {
+            // Property doesn't exist in this rule — add it
+            rule.append(postcss.decl({ prop: name, value }))
+            found = true
+          }
+        }
       })
     }
   }
 
   return root.toString()
+}
+
+/**
+ * Normalize a CSS selector for comparison.
+ * Collapses whitespace and strips Astro scoping attributes.
+ */
+function normalizeSelector(selector: string): string {
+  return selector
+    .replace(/\[data-astro-cid-[a-z0-9]+\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 /**
