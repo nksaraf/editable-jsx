@@ -1,0 +1,39 @@
+{
+  "name": "@editable-jsx/astro",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./client": {
+      "import": "./dist/client.js"
+    },
+    "./editor": {
+      "import": "./dist/editor.js"
+    }
+  },
+  "files": ["dist/**"],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@editable-jsx/core": "workspace:*",
+    "@editable-jsx/css": "workspace:*",
+    "@astrojs/compiler": "^2.0.0"
+  },
+  "peerDependencies": {
+    "vite": ">=5.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "vite": "^6.0.0"
+  }
+}
