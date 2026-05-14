@@ -578,6 +578,58 @@ export const EDITOR_STYLES = /* css */ `
     border-color: #3b82f6 !important;
   }
 
+  .expr-active {
+    border-left: 2px solid #22c55e;
+    padding-left: 4px;
+  }
+
+  .expr-inactive {
+    opacity: 0.5;
+    border-left: 2px solid #475569;
+    padding-left: 4px;
+  }
+
+  .expr-badge-active {
+    background: rgba(34, 197, 94, 0.15) !important;
+    color: #4ade80 !important;
+  }
+
+  .expr-badge-inactive {
+    background: rgba(71, 85, 105, 0.15) !important;
+    color: #64748b !important;
+  }
+
+  .expr-input-inactive {
+    color: #64748b !important;
+    text-decoration: line-through;
+  }
+
+  .expr-rendered {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #1e293b;
+    font-size: 10px;
+  }
+
+  .expr-rendered-label {
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .expr-rendered-value {
+    color: #94a3b8;
+    font-family: ui-monospace, monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .expr-raw {
     margin-top: 4px;
   }

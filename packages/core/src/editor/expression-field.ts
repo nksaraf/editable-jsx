@@ -2,17 +2,17 @@
  * Expression Field — renders an interactive UI for editing string
  * literals inside JavaScript expressions.
  *
- * Given class={active ? "on" : "off"}, renders:
+ * Given class={active ? "on" : "off"} with rendered value "on", renders:
  *
- *   ┌──────────────────────────────────────────┐
- *   │ active ?  [on_____]  :  [off____]        │
- *   │           editable      editable         │
- *   │                              [raw] toggle│
- *   └──────────────────────────────────────────┘
+ *   ┌──────────────────────────────────────────────────┐
+ *   │ active ?  [if ✓: on_____]  :  [else: off____]   │
+ *   │           ACTIVE (green)      inactive (dim)     │
+ *   │                                       [raw]      │
+ *   └──────────────────────────────────────────────────┘
  *
- * The logic (ternary operator, function calls, conditionals) is shown
- * as read-only labels. The string literals are editable input fields.
- * A "raw" toggle shows the full expression as a textarea.
+ * The "active" state is inferred by comparing the rendered DOM value
+ * against each string literal. Literals whose value appears in the
+ * rendered output are marked active; others are dimmed.
  *
  * This is framework-agnostic — works for both React JSX and Astro.
  */
@@ -31,20 +31,74 @@ export interface ExpressionChange {
 }
 
 /**
+ * Determine which string literals are "active" (present in the rendered value).
+ *
+ * For class={active ? "on" : "off"} with rendered "on":
+ * - "on" → active (it's in the output)
+ * - "off" → inactive (it's not)
+ *
+ * For class={cn("base", active && "highlight")} with rendered "base highlight":
+ * - "base" → active
+ * - "highlight" → active (both are in the output)
+ *
+ * For class={cn("base", active && "highlight")} with rendered "base":
+ * - "base" → active
+ * - "highlight" → inactive (conditional was false)
+ */
+export function inferActiveLiterals(
+  literals: ExpressionLiteral[],
+  renderedValue: string,
+): Map<number, boolean> {
+  const result = new Map<number, boolean>()
+
+  for (const lit of literals) {
+    if (!lit.value) {
+      // Empty strings are always "active" (they don't add anything)
+      result.set(lit.offset, true)
+      continue
+    }
+
+    // Check if this literal's value appears in the rendered output.
+    // For class values, the rendered output is space-separated classes,
+    // so we check if the literal is a substring or if all its classes are present.
+    const literalClasses = lit.value.split(/\s+/).filter(Boolean)
+    const renderedClasses = renderedValue.split(/\s+/).filter(Boolean)
+
+    if (literalClasses.length > 0 && literalClasses.every((c) => renderedClasses.includes(c))) {
+      result.set(lit.offset, true)
+    } else if (renderedValue.includes(lit.value)) {
+      // Direct substring match (for non-class attributes)
+      result.set(lit.offset, true)
+    } else {
+      result.set(lit.offset, false)
+    }
+  }
+
+  return result
+}
+
+/**
  * Create an interactive expression editor.
  *
  * @param expression — the raw expression string (between { and })
  * @param literals — the editable string literals extracted from the expression
+ * @param renderedValue — the current rendered value from the DOM (null if unknown)
  * @param onChange — called when any literal is edited
  * @returns the DOM element for the editor
  */
 export function createExpressionField(
   expression: string,
   literals: ExpressionLiteral[],
+  renderedValue: string | null,
   onChange: (changes: ExpressionChange[]) => void,
 ): HTMLElement {
   const container = document.createElement("div")
   container.className = "expr-field"
+
+  // Infer which literals are active
+  const activeMap = renderedValue
+    ? inferActiveLiterals(literals, renderedValue)
+    : null
 
   // Track pending changes
   const pendingChanges = new Map<number, ExpressionChange>()
@@ -75,8 +129,11 @@ export function createExpressionField(
         structuredView.appendChild(codeSpan)
       }
 
+      // Is this literal active (matches rendered value)?
+      const isActive = activeMap?.get(lit.offset) ?? null
+
       // Editable field for the string literal
-      const field = createLiteralField(lit, (newValue) => {
+      const field = createLiteralField(lit, isActive, (newValue) => {
         if (newValue !== lit.value) {
           pendingChanges.set(lit.offset, {
             offset: lit.offset,
@@ -106,6 +163,26 @@ export function createExpressionField(
       trailSpan.textContent = trailingCode
       structuredView.appendChild(trailSpan)
     }
+  }
+
+  // ── Rendered value indicator ───────────────────────────
+
+  if (renderedValue !== null) {
+    const rendered = document.createElement("div")
+    rendered.className = "expr-rendered"
+    rendered.title = "Current rendered value from the DOM"
+
+    const label = document.createElement("span")
+    label.className = "expr-rendered-label"
+    label.textContent = "rendered:"
+
+    const val = document.createElement("span")
+    val.className = "expr-rendered-value"
+    val.textContent = renderedValue || "(empty)"
+
+    rendered.appendChild(label)
+    rendered.appendChild(val)
+    structuredView.insertBefore(rendered, structuredView.firstChild)
   }
 
   // ── Raw view (hidden by default) ───────────────────────
@@ -140,12 +217,6 @@ export function createExpressionField(
     structuredView.style.display = isRaw ? "none" : ""
     rawView.style.display = isRaw ? "" : "none"
     toggleBtn.textContent = isRaw ? "visual" : "raw"
-
-    if (!isRaw) {
-      // Sync raw edits back — the textarea may have been modified
-      // but we can't parse it back into structured form reliably,
-      // so we just keep the structured changes
-    }
   })
 
   toggleRow.appendChild(toggleBtn)
@@ -159,24 +230,38 @@ export function createExpressionField(
 
 /**
  * Create an editable field for a single string literal.
+ *
+ * @param lit — the literal metadata
+ * @param isActive — true if this literal's value is in the rendered DOM output,
+ *                    false if the condition was falsy, null if unknown
+ * @param onChange — called when the input value changes
  */
 function createLiteralField(
   lit: ExpressionLiteral,
+  isActive: boolean | null,
   onChange: (newValue: string) => void,
 ): HTMLElement {
   const wrapper = document.createElement("span")
   wrapper.className = "expr-literal"
-  wrapper.title = contextLabel(lit.context)
+  if (isActive === true) wrapper.classList.add("expr-active")
+  if (isActive === false) wrapper.classList.add("expr-inactive")
+  wrapper.title = contextLabel(lit.context) +
+    (isActive === true ? " (currently active)" : "") +
+    (isActive === false ? " (currently inactive)" : "")
 
-  // Context badge (small label showing what this string is)
+  // Context badge with active indicator
   const badge = document.createElement("span")
   badge.className = "expr-badge"
-  badge.textContent = shortContextLabel(lit.context)
+  if (isActive === true) badge.classList.add("expr-badge-active")
+  if (isActive === false) badge.classList.add("expr-badge-inactive")
+  const indicator = isActive === true ? "\u2713 " : isActive === false ? "\u25CB " : ""
+  badge.textContent = indicator + shortContextLabel(lit.context)
   wrapper.appendChild(badge)
 
   // The editable input
   const input = document.createElement("input")
   input.className = "var-input expr-input"
+  if (isActive === false) input.classList.add("expr-input-inactive")
   input.value = lit.value
   input.style.fontSize = "11px"
 

@@ -30,6 +30,7 @@ export { applyPatches, groupPatchesByFile } from "./patcher/orchestrate.js"
 
 export {
   createExpressionField,
+  inferActiveLiterals,
   type ExpressionChange,
   type ExpressionLiteral,
 } from "./editor/expression-field.js"
