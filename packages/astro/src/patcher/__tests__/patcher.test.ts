@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { patchText } from "../astro-template-patcher.js"
-import type { AstroTextPatch } from "../../types.js"
+import { patchAttributes, patchText } from "../astro-template-patcher.js"
+import type { AstroAttributePatch, AstroTextPatch } from "../../types.js"
 
 describe("patchText", () => {
   test("replaces text content by position", async () => {
@@ -67,5 +67,108 @@ describe("patchText", () => {
     // Should change the text node, not the attribute
     expect(result).toContain('title="Hello World"')
     expect(result).toContain(">Changed</div>")
+  })
+})
+
+describe("patchAttributes", () => {
+  test("patches a quoted attribute value", async () => {
+    const source = `<div class="hero" id="main">Hello</div>`
+
+    const patches: AstroAttributePatch[] = [
+      {
+        action_type: "updateAstroAttribute",
+        file: "/test.astro",
+        source: { lineNumber: 1, columnNumber: 1 },
+        attribute: "class",
+        value: "updated-hero",
+      },
+    ]
+
+    const result = await patchAttributes(source, patches, "/test.astro")
+    expect(result).toContain('class="updated-hero"')
+    expect(result).toContain('id="main"')
+  })
+
+  test("patches an expression attribute value", async () => {
+    const source = `---
+const active = true
+---
+<div class={active ? "on" : "off"}>Content</div>`
+
+    const patches: AstroAttributePatch[] = [
+      {
+        action_type: "updateAstroAttribute",
+        file: "/test.astro",
+        source: { lineNumber: 4, columnNumber: 1 },
+        attribute: "class",
+        value: "always-on",
+      },
+    ]
+
+    const result = await patchAttributes(source, patches, "/test.astro")
+    // Expression should be replaced with a quoted value
+    expect(result).toContain('class="always-on"')
+    expect(result).not.toContain("active ?")
+  })
+
+  test("patches expression with nested braces", async () => {
+    const source = `<div class={cn("base", { active: isActive })}>Content</div>`
+
+    const patches: AstroAttributePatch[] = [
+      {
+        action_type: "updateAstroAttribute",
+        file: "/test.astro",
+        source: { lineNumber: 1, columnNumber: 1 },
+        attribute: "class",
+        value: "simple-class",
+      },
+    ]
+
+    const result = await patchAttributes(source, patches, "/test.astro")
+    expect(result).toContain('class="simple-class"')
+    expect(result).not.toContain("cn(")
+  })
+
+  test("adds attribute when it doesn't exist", async () => {
+    const source = `<div class="hero">Content</div>`
+
+    const patches: AstroAttributePatch[] = [
+      {
+        action_type: "updateAstroAttribute",
+        file: "/test.astro",
+        source: { lineNumber: 1, columnNumber: 1 },
+        attribute: "id",
+        value: "main-hero",
+      },
+    ]
+
+    const result = await patchAttributes(source, patches, "/test.astro")
+    expect(result).toContain('id="main-hero"')
+    expect(result).toContain('class="hero"')
+  })
+
+  test("patches multiple attributes on the same element", async () => {
+    const source = `<div class="old" id="old-id">Content</div>`
+
+    const patches: AstroAttributePatch[] = [
+      {
+        action_type: "updateAstroAttribute",
+        file: "/test.astro",
+        source: { lineNumber: 1, columnNumber: 1 },
+        attribute: "class",
+        value: "new",
+      },
+      {
+        action_type: "updateAstroAttribute",
+        file: "/test.astro",
+        source: { lineNumber: 1, columnNumber: 1 },
+        attribute: "id",
+        value: "new-id",
+      },
+    ]
+
+    const result = await patchAttributes(source, patches, "/test.astro")
+    expect(result).toContain('class="new"')
+    expect(result).toContain('id="new-id"')
   })
 })

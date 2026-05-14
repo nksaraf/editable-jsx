@@ -24,17 +24,12 @@ export async function patchAttributes(
 ): Promise<string> {
   if (patches.length === 0) return source
 
-  const { ast } = await parse(source, { position: true })
   let result = source
 
-  // Sort patches by position descending so offsets stay valid
-  const sorted = [...patches].sort((a, b) => {
-    const lineDiff = b.source.lineNumber - a.source.lineNumber
-    return lineDiff !== 0 ? lineDiff : b.source.columnNumber - a.source.columnNumber
-  })
-
-  for (const patch of sorted) {
-    // Find the element at this position
+  // Apply patches one at a time, re-parsing after each to keep offsets valid.
+  // This is O(n * parse) but n is typically 1-3 patches per save.
+  for (const patch of patches) {
+    const { ast } = await parse(result, { position: true })
     const node = findNodeAt(ast, patch.source.lineNumber, patch.source.columnNumber)
     if (!node) {
       console.warn(
@@ -46,45 +41,52 @@ export async function patchAttributes(
     // Find the attribute in the node
     const attr = node.attributes?.find((a: any) => a.name === patch.attribute)
 
-    if (attr && attr.position) {
-      // Replace the attribute value in the raw source
-      const attrStart = attr.position.start.offset
-      const attrEnd = attr.position.end?.offset ?? attrStart
+    if (attr && attr.position?.start) {
+      // Find the attribute value in the source by scanning from the attr name position.
+      // Attr positions only have `start`, no reliable `end`.
+      const nameStart = attr.position.start.offset
+      const eqIdx = result.indexOf("=", nameStart)
 
-      // The attribute in source looks like: name="value" or name={expr}
-      // We need to find the value portion and replace it
-      const attrSource = source.slice(attrStart, attrEnd)
-      const eqIdx = attrSource.indexOf("=")
+      if (eqIdx !== -1 && eqIdx < nameStart + attr.name.length + 5) {
+        // Skip whitespace after =
+        let valueStart = eqIdx + 1
+        while (valueStart < result.length && result[valueStart] === " ") valueStart++
 
-      if (eqIdx !== -1) {
-        // Has a value — replace everything after =
-        const valueStart = attrStart + eqIdx + 1
-        // Find the quote or brace
-        const quoteChar = source[valueStart]
-        const isQuoted = quoteChar === '"' || quoteChar === "'"
+        const delimiter = result[valueStart]
 
-        if (isQuoted) {
-          const closeQuote = source.indexOf(quoteChar, valueStart + 1)
+        if (delimiter === '"' || delimiter === "'") {
+          // Quoted attribute: name="value"
+          const closeQuote = result.indexOf(delimiter, valueStart + 1)
           if (closeQuote !== -1) {
             result =
-              result.slice(0, valueStart + 1) +
-              patch.value +
-              result.slice(closeQuote)
+              result.slice(0, valueStart) +
+              `"${patch.value}"` +
+              result.slice(closeQuote + 1)
+          }
+        } else if (delimiter === "{") {
+          // Expression attribute: name={expr}
+          const closeIdx = findMatchingBrace(result, valueStart)
+          if (closeIdx !== -1) {
+            const newVal = patch.value.includes("{")
+              ? patch.value
+              : `"${patch.value}"`
+            result =
+              result.slice(0, valueStart) +
+              newVal +
+              result.slice(closeIdx + 1)
           }
         }
       }
     } else if (!attr && node.position) {
       // Attribute doesn't exist — add it after the tag name
-      // Find the position right after the tag name
       const tagStart = node.position.start.offset
-      const tagSource = source.slice(tagStart)
-      const tagNameEnd = tagSource.indexOf(node.name) + node.name.length + tagStart
-      const insertPos = tagNameEnd
+      // Find the tag name in result (starts with < then the name)
+      const tagNameEnd = result.indexOf(node.name, tagStart) + node.name.length
 
       result =
-        result.slice(0, insertPos) +
+        result.slice(0, tagNameEnd) +
         ` ${patch.attribute}="${patch.value}"` +
-        result.slice(insertPos)
+        result.slice(tagNameEnd)
     }
   }
 
@@ -152,6 +154,41 @@ function findNodeAt(
   })
 
   return found
+}
+
+/**
+ * Find the matching closing brace for an opening `{` at the given position.
+ * Handles nested braces, template literals, and string literals.
+ */
+function findMatchingBrace(source: string, openPos: number): number {
+  let depth = 0
+  let inString: string | null = null
+
+  for (let i = openPos; i < source.length; i++) {
+    const ch = source[i]
+
+    // Track string context to ignore braces inside strings
+    if (inString) {
+      if (ch === inString && source[i - 1] !== "\\") {
+        inString = null
+      }
+      continue
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      inString = ch
+      continue
+    }
+
+    if (ch === "{") {
+      depth++
+    } else if (ch === "}") {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+
+  return -1 // No matching brace found
 }
 
 function walkDeep(node: any, callback: (node: any) => void): void {
