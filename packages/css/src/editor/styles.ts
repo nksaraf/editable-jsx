@@ -513,6 +513,75 @@ export const EDITOR_STYLES = /* css */ `
     border-radius: 6px;
   }
 
+  /* ── Expression field ──────────────────────────────────── */
+
+  .expr-field {
+    margin-top: 4px;
+  }
+
+  .expr-structured {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 8px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+  }
+
+  .expr-code {
+    color: #64748b;
+    white-space: nowrap;
+    user-select: none;
+    font-size: 10px;
+  }
+
+  .expr-readonly {
+    color: #475569;
+    font-style: italic;
+    font-size: 10px;
+  }
+
+  .expr-literal {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+  }
+
+  .expr-badge {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .expr-input {
+    min-width: 3ch;
+    padding: 2px 4px !important;
+    font-size: 11px !important;
+    background: rgba(59, 130, 246, 0.08) !important;
+    border-color: rgba(59, 130, 246, 0.25) !important;
+    color: #93c5fd !important;
+  }
+
+  .expr-input:focus {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border-color: #3b82f6 !important;
+  }
+
+  .expr-raw {
+    margin-top: 4px;
+  }
+
   /* ── Selection overlay ────────────────────────────────── */
 
   .css-editor-overlay {

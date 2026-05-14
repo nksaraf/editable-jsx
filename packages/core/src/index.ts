@@ -27,3 +27,9 @@ export {
 } from "./hmr/suppress.js"
 
 export { applyPatches, groupPatchesByFile } from "./patcher/orchestrate.js"
+
+export {
+  createExpressionField,
+  type ExpressionChange,
+  type ExpressionLiteral,
+} from "./editor/expression-field.js"
