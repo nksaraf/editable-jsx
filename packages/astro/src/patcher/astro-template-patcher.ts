@@ -9,7 +9,8 @@
  */
 import { parse } from "@astrojs/compiler"
 import { is } from "@astrojs/compiler/utils"
-import type { AstroAttributePatch, AstroTextPatch } from "../types.js"
+import type { AstroAttributePatch, AstroExpressionPatch, AstroTextPatch } from "../types.js"
+import { replaceStringLiteral } from "./expression-parser.js"
 
 /**
  * Apply attribute patches to an .astro file.
@@ -87,6 +88,85 @@ export async function patchAttributes(
         result.slice(0, tagNameEnd) +
         ` ${patch.attribute}="${patch.value}"` +
         result.slice(tagNameEnd)
+    }
+  }
+
+  return result
+}
+
+/**
+ * Apply expression patches — surgically replace individual string
+ * literals inside expression attributes like class={active ? "on" : "off"}.
+ *
+ * Instead of destroying the expression, this finds the specific string
+ * literal at the given offset and replaces just that string's content.
+ */
+export async function patchExpressions(
+  source: string,
+  patches: AstroExpressionPatch[],
+  fileName: string,
+): Promise<string> {
+  if (patches.length === 0) return source
+
+  let result = source
+
+  for (const patch of patches) {
+    const { ast } = await parse(result, { position: true })
+    const node = findNodeAt(
+      ast,
+      patch.source.lineNumber,
+      patch.source.columnNumber,
+    )
+    if (!node) {
+      console.warn(
+        `[editable-astro] No element found at ${fileName}:${patch.source.lineNumber}:${patch.source.columnNumber}`,
+      )
+      continue
+    }
+
+    const attr = node.attributes?.find((a: any) => a.name === patch.attribute)
+    if (!attr?.position?.start) continue
+
+    const nameStart = attr.position.start.offset
+    const eqIdx = result.indexOf("=", nameStart)
+    if (eqIdx === -1) continue
+
+    let valueStart = eqIdx + 1
+    while (valueStart < result.length && result[valueStart] === " ") valueStart++
+
+    const delimiter = result[valueStart]
+
+    if (delimiter === "{") {
+      // Expression attribute — find the expression content
+      const closeIdx = findMatchingBrace(result, valueStart)
+      if (closeIdx === -1) continue
+
+      // Extract the expression (between { and })
+      const exprContent = result.slice(valueStart + 1, closeIdx)
+
+      // Replace the specific string literal within the expression
+      const modifiedExpr = replaceStringLiteral(
+        exprContent,
+        patch.literalOffset,
+        patch.oldLiteral,
+        patch.newLiteral,
+      )
+
+      result =
+        result.slice(0, valueStart + 1) + modifiedExpr + result.slice(closeIdx)
+    } else if (delimiter === '"' || delimiter === "'") {
+      // Simple quoted attribute — the "expression" is just a string
+      // Replace the content between quotes
+      const closeQuote = result.indexOf(delimiter, valueStart + 1)
+      if (closeQuote === -1) continue
+
+      const currentValue = result.slice(valueStart + 1, closeQuote)
+      if (currentValue === patch.oldLiteral) {
+        result =
+          result.slice(0, valueStart + 1) +
+          patch.newLiteral +
+          result.slice(closeQuote)
+      }
     }
   }
 

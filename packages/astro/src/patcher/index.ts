@@ -3,7 +3,7 @@ import { applyPatches as coreApplyPatches } from "@editable-jsx/core"
 import { suppressFile } from "@editable-jsx/core"
 import type { AstroPatch } from "../types.js"
 import { filesToSkipOnHmr } from "../server/hmr.js"
-import { patchAttributes, patchText } from "./astro-template-patcher.js"
+import { patchAttributes, patchExpressions, patchText } from "./astro-template-patcher.js"
 
 async function applyFilePatches(
   file: string,
@@ -14,12 +14,18 @@ async function applyFilePatches(
   const attrPatches = patches.filter(
     (p) => p.action_type === "updateAstroAttribute",
   )
+  const exprPatches = patches.filter(
+    (p) => p.action_type === "updateAstroExpression",
+  )
   const textPatches = patches.filter(
     (p) => p.action_type === "updateAstroText",
   )
 
   if (attrPatches.length > 0) {
     code = await patchAttributes(code, attrPatches as any, file)
+  }
+  if (exprPatches.length > 0) {
+    code = await patchExpressions(code, exprPatches as any, file)
   }
   if (textPatches.length > 0) {
     code = await patchText(code, textPatches as any, file)

@@ -13,12 +13,36 @@ export interface AstroSourceAnnotation extends SourceLocation {
 
 /**
  * Patch for editing an Astro template attribute.
+ *
+ * For quoted attributes (class="value"), replaces the whole value.
+ * For expression attributes (class={expr}), use AstroExpressionPatch instead.
  */
 export interface AstroAttributePatch extends BasePatch {
   action_type: "updateAstroAttribute"
   source: { lineNumber: number; columnNumber: number }
   attribute: string
   value: string
+}
+
+/**
+ * Patch for editing a specific string literal INSIDE an expression attribute.
+ *
+ * Instead of replacing class={active ? "on" : "off"} entirely, this
+ * replaces just "on" → "active" while preserving the ternary structure.
+ *
+ * The `literalOffset` is the character offset of the string literal
+ * within the expression (relative to the opening {).
+ */
+export interface AstroExpressionPatch extends BasePatch {
+  action_type: "updateAstroExpression"
+  source: { lineNumber: number; columnNumber: number }
+  attribute: string
+  /** The original string literal value (without quotes) */
+  oldLiteral: string
+  /** The new string literal value */
+  newLiteral: string
+  /** Character offset of the string literal within the expression */
+  literalOffset: number
 }
 
 /**
@@ -31,7 +55,7 @@ export interface AstroTextPatch extends BasePatch {
   newText: string
 }
 
-export type AstroPatch = AstroAttributePatch | AstroTextPatch
+export type AstroPatch = AstroAttributePatch | AstroExpressionPatch | AstroTextPatch
 
 export interface AstroEditorOptions {
   /** Enable template attribute editing (default: true) */
