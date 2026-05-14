@@ -96,6 +96,25 @@ export function toHexColor(value: string): string {
     return `#${r}${g}${b}`
   }
 
+  // hsl(h, s%, l%) or hsla(h, s%, l%, a)
+  const hslMatch = value.match(
+    /hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*[\d.]+\s*)?\)/,
+  )
+  if (hslMatch) {
+    return hslToHex(
+      parseFloat(hslMatch[1]),
+      parseFloat(hslMatch[2]),
+      parseFloat(hslMatch[3]),
+    )
+  }
+
+  // oklch, oklab, lch, lab, hwb, color() — cannot convert accurately in JS
+  // without a full color science library. Return a neutral gray fallback so
+  // <input type="color"> doesn't silently show black.
+  if (/^(?:oklch|oklab|lch|lab|hwb|color)\s*\(/.test(value)) {
+    return "#808080"
+  }
+
   return value
 }
 
@@ -233,4 +252,25 @@ export function createControl(
     default:
       return createTextControl(value, onChange)
   }
+}
+
+// ── Internal helpers ───────────────────────────────────────────────
+
+/**
+ * Convert HSL values to a hex color string.
+ * h: 0-360, s: 0-100, l: 0-100
+ */
+export function hslToHex(h: number, s: number, l: number): string {
+  s /= 100
+  l /= 100
+
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+    return Math.round(255 * Math.max(0, Math.min(1, color)))
+      .toString(16)
+      .padStart(2, "0")
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
 }

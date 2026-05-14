@@ -15,6 +15,7 @@ export function makeHmrRequest<TPayload, TResult>(
   sendEvent: string,
   resultEvent: string,
   payload: TPayload,
+  timeoutMs: number = 10_000,
 ): Promise<TResult> {
   return new Promise((resolve, reject) => {
     if (!import.meta.hot) {
@@ -22,7 +23,23 @@ export function makeHmrRequest<TPayload, TResult>(
       return
     }
 
+    let settled = false
+
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      import.meta.hot!.off(resultEvent, handler)
+      reject(
+        new Error(
+          `HMR request timed out after ${timeoutMs}ms (${sendEvent} -> ${resultEvent})`,
+        ),
+      )
+    }, timeoutMs)
+
     const handler = (result: any) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
       import.meta.hot!.off(resultEvent, handler)
       if (result && typeof result === "object" && "success" in result) {
         if (result.success) {

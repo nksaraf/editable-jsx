@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { readFileSync, existsSync } from "node:fs"
 import { parseAstroVariables } from "../parse-astro.js"
 import { buildManifest } from "../manifest.js"
 import { applyAstroPatches } from "../../patcher/astro-patcher.js"
 
 const LEPTON_WEB = "/Users/nikhilsaraf/garage/LeptonSoftware-web"
+const HAS_LEPTON_WEB = existsSync(LEPTON_WEB)
 
-describe("lepton-web integration", () => {
+const describeIfLepton = HAS_LEPTON_WEB ? describe : describe.skip
+
+describeIfLepton("lepton-web integration", () => {
   test("parses BaseLayout.astro CSS variables", () => {
     const content = readFileSync(
       `${LEPTON_WEB}/src/layouts/BaseLayout.astro`,

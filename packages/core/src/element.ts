@@ -173,7 +173,10 @@ export class ComponentTree {
   }
 
   walk(visitor: (node: ElementNode, depth: number) => void): void {
+    const visited = new Set<string>()
     const visit = (node: ElementNode, depth: number) => {
+      if (visited.has(node.id)) return
+      visited.add(node.id)
       visitor(node, depth)
       for (const childId of node.childIds) {
         const child = this.nodes.get(childId)

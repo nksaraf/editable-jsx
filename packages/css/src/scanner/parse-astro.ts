@@ -64,6 +64,22 @@ export function extractStyleBlocks(content: string): StyleBlock[] {
     })
   }
 
+  // Filter out any blocks whose charOffset falls inside an HTML comment (<!-- ... -->)
+  const commentRanges: Array<[number, number]> = []
+  const commentRegex = /<!--[\s\S]*?-->/g
+  let cm: RegExpExecArray | null
+  while ((cm = commentRegex.exec(content)) !== null) {
+    commentRanges.push([cm.index, cm.index + cm[0].length])
+  }
+
+  if (commentRanges.length > 0) {
+    return blocks.filter((block) => {
+      return !commentRanges.some(
+        ([start, end]) => block.charOffset >= start && block.charOffset < end,
+      )
+    })
+  }
+
   return blocks
 }
 

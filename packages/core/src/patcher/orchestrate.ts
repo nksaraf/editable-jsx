@@ -5,6 +5,37 @@
  * Used by all framework-specific patchers (JSX/ts-morph, CSS/PostCSS, Astro/compiler).
  */
 
+// ── Per-file mutex ─────────────────────────────────────────────────
+
+/**
+ * Simple async mutex: serializes access per key (file path).
+ * Two concurrent `applyPatches` calls on the same file will
+ * be sequenced rather than racing.
+ */
+const fileLocks = new Map<string, Promise<void>>()
+
+async function withFileLock(
+  file: string,
+  fn: () => Promise<void>,
+): Promise<void> {
+  // Wait for the previous operation on this file (if any)
+  const prev = fileLocks.get(file) ?? Promise.resolve()
+
+  // Chain our work after the previous promise.
+  // We store the chain BEFORE awaiting so the next caller sees us.
+  const current = prev.then(fn, fn)
+  fileLocks.set(file, current)
+
+  try {
+    await current
+  } finally {
+    // Clean up if we're still the tail of the chain
+    if (fileLocks.get(file) === current) {
+      fileLocks.delete(file)
+    }
+  }
+}
+
 /**
  * Group patches by file path.
  *
@@ -31,6 +62,9 @@ export function groupPatchesByFile<P>(
  * Calls `applyFileFn` for each file group. Collects errors from
  * individual files and throws a combined error if any failed.
  *
+ * Per-file access is serialized via an async mutex so that two
+ * concurrent `applyPatches` calls on the same file don't race.
+ *
  * @param patches - All patches to apply
  * @param getFile - Extracts the file path from a patch
  * @param applyFileFn - Applies patches to a single file
@@ -46,7 +80,7 @@ export async function applyPatches<P>(
   await Promise.all(
     Object.entries(grouped).map(async ([file, filePatches]) => {
       try {
-        await applyFileFn(file, filePatches)
+        await withFileLock(file, () => applyFileFn(file, filePatches))
       } catch (err: any) {
         console.error(`[editable] Failed to apply patches to ${file}:`, err)
         errors.push({ file, error: err })

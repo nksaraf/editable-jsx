@@ -123,4 +123,83 @@ const data = { x: 1 }
     const result = applyAstroPatches(content, [], "/test.astro")
     expect(result).toBe(content)
   })
+
+  test("throws when text is not found in any text-node context", () => {
+    const content = `---
+---
+<h1>Actual Title</h1>
+<style>
+  h1 { color: blue; }
+</style>`
+
+    const patches: CSSPatch[] = [
+      {
+        action_type: "updateTextContent",
+        file: "/test.astro",
+        textContent: {
+          line: 0,
+          col: 0,
+          oldText: "Nonexistent text that is not in the file",
+          newText: "Replacement",
+        },
+      },
+    ]
+
+    expect(() => applyAstroPatches(content, patches, "/test.astro")).toThrow(
+      "Text not found in template",
+    )
+  })
+
+  test("falls back to normalized search when position-based lookup misses", () => {
+    // Text exists but not at the specified line/col
+    const content = `---
+---
+<h1>Hello World</h1>
+<p>Other text</p>
+<style>
+  h1 { color: blue; }
+</style>`
+
+    const patches: CSSPatch[] = [
+      {
+        action_type: "updateTextContent",
+        file: "/test.astro",
+        textContent: {
+          line: 99, // wrong line — position-based will fail
+          col: 1,
+          oldText: "Hello World",
+          newText: "Goodbye World",
+        },
+      },
+    ]
+
+    // Should fall back to normalized search instead of silently dropping
+    const result = applyAstroPatches(content, patches, "/test.astro")
+    expect(result).toContain("<h1>Goodbye World</h1>")
+  })
+
+  test("falls back to normalized search when text not at expected column", () => {
+    const content = `---
+---
+<h1>Hello World</h1>
+<style>
+  h1 { color: blue; }
+</style>`
+
+    const patches: CSSPatch[] = [
+      {
+        action_type: "updateTextContent",
+        file: "/test.astro",
+        textContent: {
+          line: 3,
+          col: 99, // wrong column — indexOf from col 98 won't find it
+          oldText: "Hello World",
+          newText: "Updated World",
+        },
+      },
+    ]
+
+    const result = applyAstroPatches(content, patches, "/test.astro")
+    expect(result).toContain("<h1>Updated World</h1>")
+  })
 })

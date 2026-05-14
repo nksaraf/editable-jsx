@@ -62,18 +62,33 @@ const html = '<style>:root { --fake: yes; }</style>'
     expect(blocks[0].css).not.toContain("--fake")
   })
 
-  test("ignores <style> in HTML comments", () => {
+  test("filters out <style> blocks inside HTML comments", () => {
     const content = `---
 ---
 <!-- <style>:root { --commented: yes; }</style> -->
 <style>
   .actual { color: red; }
 </style>`
-    // The HTML comment <style> may still match since we only strip frontmatter,
-    // but the real style block should always be found
     const blocks = extractStyleBlocks(content)
-    const realBlock = blocks.find((b) => b.css.includes(".actual"))
-    expect(realBlock).toBeDefined()
+    // Only the real block should be returned; the commented one should be filtered
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].css).toContain(".actual")
+    expect(blocks[0].css).not.toContain("--commented")
+  })
+
+  test("filters out nested style in multi-line HTML comment", () => {
+    const content = `<div>hello</div>
+<!--
+  <style is:global>
+    :root { --old: red; }
+  </style>
+-->
+<style>
+  .real { color: blue; }
+</style>`
+    const blocks = extractStyleBlocks(content)
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].css).toContain(".real")
   })
 })
 

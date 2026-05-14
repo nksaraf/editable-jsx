@@ -126,6 +126,7 @@ function applyTextPatches(
       // Strategy 1: position-based replacement
       const lines = result.split("\n")
       const lineIdx = line - 1
+      let applied = false
       if (lineIdx >= 0 && lineIdx < lines.length) {
         const colIdx = Math.max(0, col - 1)
         const foundIdx = lines[lineIdx].indexOf(oldText, colIdx)
@@ -135,7 +136,12 @@ function applyTextPatches(
             newText +
             lines[lineIdx].slice(foundIdx + oldText.length)
           result = lines.join("\n")
+          applied = true
         }
+      }
+      if (!applied) {
+        // Fall back to whitespace-normalized search when position-based lookup misses
+        result = replaceNormalizedText(result, oldText, newText)
       }
     } else {
       // Strategy 2: whitespace-normalized text search in template portion.
@@ -203,7 +209,14 @@ function replaceNormalizedText(
   let searchFrom = 0
   while (true) {
     const matchIdx = normalized.indexOf(normalizedOld, searchFrom)
-    if (matchIdx === -1) return content
+    if (matchIdx === -1) {
+      console.warn(
+        `[editable] replaceNormalizedText: could not find "${oldText}" in any text-node context`,
+      )
+      throw new Error(
+        `Text not found in template: "${oldText.length > 60 ? oldText.slice(0, 60) + "..." : oldText}"`,
+      )
+    }
 
     // Map back to original positions
     const origStart = posMap[matchIdx]
