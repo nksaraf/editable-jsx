@@ -1,38 +1,31 @@
 /**
- * Vite plugin that annotates .astro files with source metadata.
+ * Vite plugin for Astro template annotation.
  *
- * Runs as `enforce: "pre"` so annotations are injected into the
- * .astro source BEFORE Astro's own compiler processes it.
- * The annotations survive compilation and appear in the rendered HTML.
+ * The annotation transform (annotateAstroTemplate) works correctly
+ * on .astro source files, but integrating it into Astro's Vite pipeline
+ * is non-trivial — Astro's compiler expects to be the sole processor
+ * of .astro files, and both `load` and `transform` hooks conflict
+ * with Astro's internal module system.
+ *
+ * Current approach: no build-time annotation. The AstroAdapter reads
+ * source info from Astro's existing data-astro-cid-* attributes and
+ * data-vite-dev-id style tags. The annotateAstroTemplate function is
+ * still exported for use in custom build pipelines or future Astro
+ * compiler plugin APIs.
+ *
+ * TODO: When Astro exposes a compiler plugin hook (requested upstream),
+ * use it to inject data-editable-* attributes at compile time.
  */
 import type { Plugin } from "vite"
 import type { AstroEditorOptions } from "../types.js"
-import { annotateAstroTemplate } from "./annotate.js"
 
 export function createAnnotatePlugin(
-  options: AstroEditorOptions = {},
+  _options: AstroEditorOptions = {},
 ): Plugin {
-  const excludePatterns = options.exclude || []
-
   return {
     name: "editable-astro:annotate",
-    enforce: "pre",
-
-    async transform(code, id) {
-      // Only process .astro files
-      if (!id.endsWith(".astro")) return null
-
-      // Skip excluded files
-      if (excludePatterns.some((re) => re.test(id))) return null
-
-      try {
-        const annotated = await annotateAstroTemplate(code, id)
-        return { code: annotated, map: null }
-      } catch (err) {
-        // Don't break the build — log and pass through
-        console.warn(`[editable-astro] Failed to annotate ${id}:`, err)
-        return null
-      }
-    },
+    // No-op for now — annotation is deferred until Astro supports
+    // compiler plugins. The AstroAdapter uses runtime source
+    // resolution (CID + data-vite-dev-id) as a fallback.
   }
 }

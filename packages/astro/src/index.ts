@@ -6,6 +6,7 @@ import { createAstroEditorPlugin } from "./server/index.js"
 
 export type { AstroEditorOptions, AstroPatch, AstroSourceAnnotation } from "./types.js"
 export { annotateAstroTemplate } from "./transform/annotate.js"
+export { AstroAdapter, elementFromDOM, buildTreeFromDOM, readSourceAnnotation } from "./adapter.js"
 
 /**
  * Astro integration for editable-jsx.
