@@ -29,6 +29,33 @@ export {
 export { applyPatches, groupPatchesByFile } from "./patcher/orchestrate.js"
 
 export {
+  replaceAtOffset,
+  replaceAtPosition,
+  replaceNormalized,
+  type ReplaceOptions,
+} from "./patcher/text-patcher.js"
+
+export {
+  createPatchDispatcher,
+  patchFramework,
+  type AstroAttrPatch,
+  type AstroExprPatch,
+  type CSSPropertyPatch,
+  type CSSVariablePatch,
+  type JSXAttrPatch,
+  type JSXClassNamePatch,
+  type Patch,
+  type PatchRouter,
+  type TextPatch,
+} from "./patcher/patch-types.js"
+
+export {
+  sourceResolver,
+  type ResolvedSource,
+  type SourceStrategy,
+} from "./resolve/source-resolver.js"
+
+export {
   createExpressionField,
   inferActiveLiterals,
   type ExpressionChange,
