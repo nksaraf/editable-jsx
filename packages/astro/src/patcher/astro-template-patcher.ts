@@ -247,7 +247,11 @@ function replaceTextInTemplate(
   let searchFrom = 0
   while (true) {
     const matchIdx = normalized.indexOf(normalizedOld, searchFrom)
-    if (matchIdx === -1) return content
+    if (matchIdx === -1) {
+      throw new Error(
+        `Text not found in template: "${oldText.length > 60 ? oldText.slice(0, 60) + "..." : oldText}"`,
+      )
+    }
 
     const origStart = posMap[matchIdx]
     const matchEndNorm = matchIdx + normalizedOld.length - 1
