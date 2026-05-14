@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs"
+import { suppressFile } from "@editable-jsx/core"
 import type { CSSPatch } from "../types.js"
 import { filesToSkipOnHmr } from "../server/hmr.js"
 import { applyAstroPatches } from "./astro-patcher.js"
@@ -54,13 +55,7 @@ async function applyFilePatches(
     }
   }
 
-  // Tell HMR to skip this file — we already applied the changes.
-  // Auto-expire after 5s so a stale entry never permanently suppresses HMR.
-  const existing = filesToSkipOnHmr.get(file)
-  if (existing?.timeout) clearTimeout(existing.timeout)
-
-  const timeout = setTimeout(() => filesToSkipOnHmr.delete(file), 5000)
-  filesToSkipOnHmr.set(file, { skip: true, timeout })
+  suppressFile(filesToSkipOnHmr, file)
   writeFileSync(file, content)
 }
 

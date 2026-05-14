@@ -1,2 +1,2 @@
-export const filesToSkipOnHmr: Map<string, { skip: boolean; timeout: any }> =
-  new Map()
+import { createSuppressMap } from "@editable-jsx/core"
+export const filesToSkipOnHmr = createSuppressMap()

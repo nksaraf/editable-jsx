@@ -10,6 +10,7 @@
  * We use this to trace CSS rules back to source files for save-to-source.
  */
 
+import { sourceResolver } from "@editable-jsx/core"
 import type {
   CSSPatch,
   CSSPropertyPatch,
@@ -264,54 +265,23 @@ function calculateSpecificity(selector: string): number {
 /**
  * Resolve the source file and location for a DOM element.
  *
- * Strategy 1: Astro's annotateSourceFile injects `data-astro-source-file`
- * and `data-astro-source-loc` attributes on every element in dev mode.
- * This is the most reliable source — exact file path and line:col.
- *
- * Strategy 2 (fallback): Map the element's data-astro-cid-xxx attribute
- * to a <style> tag's data-vite-dev-id. Less precise (file only, no position).
+ * Delegates to the shared SourceResolver from @editable-jsx/core which
+ * tries multiple strategies in priority order (data-editable-*,
+ * data-astro-source-*, astro-cid tracing).
  */
 function resolveAstroSourceFile(el: Element): {
   file: string
   line: number
   col: number
 } | null {
-  // Strategy 1: Astro's built-in source annotations
-  const sourceFile =
-    el.getAttribute("data-astro-source-file") ||
-    el.closest("[data-astro-source-file]")?.getAttribute("data-astro-source-file")
+  const resolved = sourceResolver.resolve(el)
+  if (!resolved) return null
 
-  if (sourceFile) {
-    const sourceLoc =
-      el.getAttribute("data-astro-source-loc") ||
-      el.closest("[data-astro-source-loc]")?.getAttribute("data-astro-source-loc")
-    const [line, col] = sourceLoc ? sourceLoc.split(":").map(Number) : [0, 0]
-    return { file: sourceFile, line: line || 0, col: col || 0 }
+  return {
+    file: resolved.fileName,
+    line: resolved.lineNumber,
+    col: resolved.columnNumber,
   }
-
-  // Strategy 2: CID → style tag → data-vite-dev-id
-  let cidAttr: string | null = null
-  let current: Element | null = el
-  while (current) {
-    for (const attr of current.attributes) {
-      if (attr.name.startsWith("data-astro-cid-")) {
-        cidAttr = attr.name
-        break
-      }
-    }
-    if (cidAttr) break
-    current = current.parentElement
-  }
-  if (!cidAttr) return null
-
-  const cidSelector = `[${cidAttr}]`
-  for (const style of document.querySelectorAll("style[data-vite-dev-id]")) {
-    if ((style.textContent || "").includes(cidSelector)) {
-      const devId = style.getAttribute("data-vite-dev-id")!
-      return { file: devId.split("?")[0], line: 0, col: 0 }
-    }
-  }
-  return null
 }
 
 // ── Pending changes tracker ────────────────────────────────────────

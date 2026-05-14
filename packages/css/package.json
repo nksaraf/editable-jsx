@@ -36,6 +36,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@editable-jsx/core": "workspace:*",
     "postcss": "^8.5.0",
     "fast-glob": "^3.3.0"
   },

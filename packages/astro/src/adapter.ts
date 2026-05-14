@@ -18,6 +18,7 @@ import type {
   FrameworkAdapter,
   PropertyChange,
 } from "@editable-jsx/core"
+import { sourceResolver } from "@editable-jsx/core"
 
 import type { AstroPatch, AstroAttributePatch, AstroTextPatch } from "./types.js"
 import { ATTRS } from "./types.js"
@@ -27,6 +28,10 @@ import { ATTRS } from "./types.js"
 /**
  * Read the editable-jsx source annotation from a DOM element.
  * Returns null if the element has no annotation.
+ *
+ * Delegates source file/position resolution to the shared SourceResolver
+ * from @editable-jsx/core, then reads element/component names from
+ * data-editable-* attributes.
  */
 export function readSourceAnnotation(el: Element): {
   file: string
@@ -35,64 +40,16 @@ export function readSourceAnnotation(el: Element): {
   element: string
   component: string | null
 } | null {
-  // Strategy 1: Our own data-editable-* annotations (from annotation transform)
-  const file = el.getAttribute(ATTRS.sourceFile)
-  if (file) {
-    return {
-      file,
-      line: parseInt(el.getAttribute(ATTRS.line) || "0", 10),
-      col: parseInt(el.getAttribute(ATTRS.col) || "0", 10),
-      element: el.getAttribute(ATTRS.element) || el.tagName.toLowerCase(),
-      component: el.getAttribute(ATTRS.component),
-    }
-  }
+  const resolved = sourceResolver.resolve(el)
+  if (!resolved) return null
 
-  // Strategy 2: Astro's native dev toolbar annotations
-  const astroFile =
-    el.getAttribute("data-astro-source-file") ||
-    el.closest("[data-astro-source-file]")?.getAttribute("data-astro-source-file")
-  if (astroFile) {
-    const loc = el.getAttribute("data-astro-source-loc") || ""
-    const [line, col] = loc.split(":").map(Number)
-    return {
-      file: astroFile,
-      line: line || 0,
-      col: col || 0,
-      element: el.tagName.toLowerCase(),
-      component: null,
-    }
+  return {
+    file: resolved.fileName,
+    line: resolved.lineNumber,
+    col: resolved.columnNumber,
+    element: el.getAttribute(ATTRS.element) || el.tagName.toLowerCase(),
+    component: el.getAttribute(ATTRS.component),
   }
-
-  // Strategy 3: CID → style tag → data-vite-dev-id (file only)
-  let cidAttr: string | null = null
-  let current: Element | null = el
-  while (current) {
-    for (const attr of current.attributes) {
-      if (attr.name.startsWith("data-astro-cid-")) {
-        cidAttr = attr.name
-        break
-      }
-    }
-    if (cidAttr) break
-    current = current.parentElement
-  }
-  if (cidAttr) {
-    const cidSel = `[${cidAttr}]`
-    for (const style of document.querySelectorAll("style[data-vite-dev-id]")) {
-      if ((style.textContent || "").includes(cidSel)) {
-        const devId = style.getAttribute("data-vite-dev-id")!
-        return {
-          file: devId.split("?")[0],
-          line: 0,
-          col: 0,
-          element: el.tagName.toLowerCase(),
-          component: null,
-        }
-      }
-    }
-  }
-
-  return null
 }
 
 // ── Building ElementNodes from DOM ──────────────────────────────────

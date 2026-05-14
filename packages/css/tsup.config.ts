@@ -10,7 +10,7 @@ export default defineConfig([
     dts: true,
     sourcemap: true,
     clean: true,
-    external: ["vite", "postcss", "fast-glob"],
+    external: ["vite", "postcss", "fast-glob", "@editable-jsx/core"],
   },
   // Client-side HMR bridge (browser — import.meta.hot)
   {
