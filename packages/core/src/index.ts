@@ -34,3 +34,10 @@ export {
   type ExpressionChange,
   type ExpressionLiteral,
 } from "./editor/expression-field.js"
+
+export { createClassEditor } from "./editor/class-editor.js"
+
+export {
+  createValueSourceIndicator,
+  type ValueSource,
+} from "./editor/value-source.js"

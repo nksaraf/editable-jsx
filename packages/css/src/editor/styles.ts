@@ -634,6 +634,111 @@ export const EDITOR_STYLES = /* css */ `
     margin-top: 4px;
   }
 
+  /* ── Class tag editor ──────────────────────────────────── */
+
+  .class-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .class-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .class-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 4px 2px 8px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    transition: border-color 0.15s;
+  }
+
+  .class-tag:hover {
+    border-color: #475569;
+  }
+
+  .class-tag-label {
+    color: #94a3b8;
+    cursor: text;
+    user-select: all;
+  }
+
+  .class-tag-edit {
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    font: inherit;
+    padding: 0;
+    outline: none;
+    min-width: 3ch;
+  }
+
+  .class-tag-remove {
+    background: none;
+    border: none;
+    color: #475569;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
+  }
+
+  .class-tag-remove:hover {
+    color: #ef4444;
+  }
+
+  .class-add-input {
+    font-size: 11px !important;
+    padding: 3px 6px !important;
+  }
+
+  .class-add-input::placeholder {
+    color: #334155;
+  }
+
+  /* ── Value source indicator ───────────────────────────── */
+
+  .value-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #475569;
+    margin-bottom: 2px;
+  }
+
+  .value-source-badge {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .value-source-badge.literal {
+    background: rgba(34, 197, 94, 0.1);
+    color: #4ade80;
+  }
+
+  .value-source-badge.variable {
+    background: rgba(168, 85, 247, 0.1);
+    color: #c084fc;
+  }
+
+  .value-source-badge.expression {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+  }
+
   /* ── Selection overlay ────────────────────────────────── */
 
   .css-editor-overlay {
