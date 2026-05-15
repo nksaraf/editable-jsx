@@ -1,0 +1,39 @@
+---
+interface Props {
+  title: string;
+  body: string;
+}
+
+const { title, body } = Astro.props;
+---
+
+<article class="card">
+  <h2 class="card-title">{title}</h2>
+  <p class="card-body">{body}</p>
+</article>
+
+<style>
+  .card {
+    border: 1px solid #e5e7eb;
+    border-radius: var(--radius);
+    padding: calc(var(--spacing) * 1.5);
+    background: var(--bg);
+    transition: box-shadow 0.2s;
+  }
+
+  .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .card-title {
+    font-size: 1.25rem;
+    color: var(--fg);
+    margin: 0 0 0.5rem;
+  }
+
+  .card-body {
+    font-size: 0.95rem;
+    color: var(--fg-muted);
+    margin: 0;
+  }
+</style>

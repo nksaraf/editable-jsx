@@ -1,0 +1,36 @@
+---
+import Base from "../layouts/Base.astro";
+import Nav from "../components/Nav.astro";
+import Hero from "../components/Hero.astro";
+import Card from "../components/Card.astro";
+---
+
+<Base title="Editable JSX Testbed">
+  <Nav active="home" />
+  <Hero highlight={true} />
+  <section class="container">
+    <div class="card-grid">
+      <Card
+        title="CSS Variables"
+        body="Design tokens defined as CSS custom properties, editable in real time."
+      />
+      <Card
+        title="CSS Properties"
+        body="Scoped styles on components, inspectable and modifiable through the editor."
+      />
+      <Card
+        title="Text Content"
+        body="Inline text editing with live preview and source file updates."
+      />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: calc(var(--spacing) * 1.5);
+    margin-top: calc(var(--spacing) * 2);
+  }
+</style>

@@ -1,0 +1,53 @@
+---
+interface Props {
+  active?: string;
+}
+
+const { active = "home" } = Astro.props;
+
+const links = [
+  { id: "home", label: "Home", href: "/" },
+  { id: "about", label: "About", href: "/about" },
+  { id: "docs", label: "Docs", href: "/docs" },
+];
+---
+
+<nav class="nav">
+  {
+    links.map((link) => (
+      <a
+        href={link.href}
+        class={active === link.id ? "nav-link nav-link--active" : "nav-link"}
+      >
+        {link.label}
+      </a>
+    ))
+  }
+</nav>
+
+<style>
+  .nav {
+    display: flex;
+    gap: var(--spacing);
+    padding: var(--spacing) calc(var(--spacing) * 2);
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .nav-link {
+    text-decoration: none;
+    color: var(--fg-muted);
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius);
+    transition: color 0.15s;
+  }
+
+  .nav-link:hover {
+    color: var(--accent);
+  }
+
+  .nav-link--active {
+    color: var(--accent);
+    font-weight: 700;
+  }
+</style>

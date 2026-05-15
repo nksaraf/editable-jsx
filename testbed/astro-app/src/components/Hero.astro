@@ -1,0 +1,17 @@
+---
+interface Props {
+  highlight?: boolean;
+}
+
+const { highlight = false } = Astro.props;
+---
+
+<section class="container">
+  <h1 class={highlight ? "hero-title highlighted" : "hero-title"}>
+    Welcome to the Testbed
+  </h1>
+  <p class="hero-body">
+    This testbed verifies the full editing pipeline with CSS variables,
+    expression attributes, and scoped styles.
+  </p>
+</section>
