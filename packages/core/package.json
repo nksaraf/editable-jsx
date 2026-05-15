@@ -15,7 +15,9 @@
       "import": "./dist/client.js"
     }
   },
-  "files": ["dist/**"],
+  "files": [
+    "dist/**"
+  ],
   "license": "MIT",
   "scripts": {
     "build": "tsup",
@@ -23,5 +25,13 @@
   },
   "devDependencies": {
     "tsup": "^8.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nksaraf/editable-jsx.git",
+    "directory": "packages/core"
   }
 }
