@@ -116,20 +116,60 @@ export const editableAttrsStrategy: SourceStrategy = {
 
 /**
  * Strategy: data-astro-source-* attributes (Astro's native dev toolbar)
+ *
+ * IMPORTANT: Astro's dev toolbar STRIPS these attributes from the DOM
+ * after page load and stores them in a WeakMap. We check both:
+ * 1. The DOM attribute (if it hasn't been stripped yet)
+ * 2. Astro's internal WeakMap via getAnnotationsForElement()
  */
 export const astroSourceStrategy: SourceStrategy = {
   name: "data-astro-source",
   priority: 20,
   resolve(el) {
-    const file = el.getAttribute("data-astro-source-file")
+    // 1. Try DOM attributes directly (may already be stripped)
+    let file = el.getAttribute("data-astro-source-file")
+    let loc = el.getAttribute("data-astro-source-loc") || ""
+
+    // 2. If stripped, try Astro's internal annotation WeakMap
+    if (!file) {
+      const astroAnnotations = getAstroAnnotations(el)
+      if (astroAnnotations) {
+        file = astroAnnotations.file
+        loc = astroAnnotations.location || ""
+      }
+    }
+
     if (!file) return null
 
-    const loc = el.getAttribute("data-astro-source-loc") || ""
     const [line, col] = loc.split(":").map(Number)
     const label = file.replace(/^.*\/src\//, "src/")
 
     return { fileName: file, lineNumber: line || 0, columnNumber: col || 0, label, strategy: "data-astro-source" }
   },
+}
+
+/**
+ * Read captured Astro source annotations for an element.
+ *
+ * Astro's dev toolbar STRIPS data-astro-source-file/loc from the DOM
+ * after page load. We capture them before Astro does via an early
+ * head-inline script that stores them in window.__editableSourceMap__.
+ */
+function getAstroAnnotations(
+  el: Element,
+): { file: string; location: string } | null {
+  try {
+    // Read from our pre-captured Map (injected by @editable-jsx/astro)
+    const sourceMap = (window as any).__editableSourceMap__ as
+      | Map<Element, { file: string; location: string }>
+      | undefined
+    if (sourceMap) {
+      return sourceMap.get(el) ?? null
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 /**

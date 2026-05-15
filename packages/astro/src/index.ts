@@ -55,6 +55,24 @@ export function astroEditor(options: AstroEditorOptions = {}) {
 
         // Inject client scripts
         const shortcut = options.shortcut || "meta+shift+e"
+
+        // CRITICAL: Capture source annotations before Astro's dev toolbar
+        // strips them. Astro's processAnnotations() runs on DOMContentLoaded
+        // and REMOVES data-astro-source-file/loc from every element, storing
+        // them in a WeakMap. We capture them first into our own Map.
+        ctx.injectScript(
+          "head-inline",
+          `window.__editableSourceMap__ = new Map();
+           document.addEventListener("DOMContentLoaded", function() {
+             document.querySelectorAll("[data-astro-source-file]").forEach(function(el) {
+               window.__editableSourceMap__.set(el, {
+                 file: el.getAttribute("data-astro-source-file"),
+                 location: el.getAttribute("data-astro-source-loc") || ""
+               });
+             });
+           });`,
+        )
+
         ctx.injectScript(
           "head-inline",
           `window.__ASTRO_EDITOR_OPTIONS__ = ${JSON.stringify({ shortcut })};`,
