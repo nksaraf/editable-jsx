@@ -203,17 +203,20 @@ export class Editor<T extends EditableElement = EditableElement>
       forwardRef
     )
 
+    // React 19: key must be a direct JSX attribute, not spread from an object
+    const { key, ...restProps } = editableProps
+
     if (editableElement.forwardedRef) {
       return (
         <EditableContext.Provider value={editableElement}>
-          <editableElement.type {...editableProps} />
+          <editableElement.type key={key} {...restProps} />
           {/* {editableElement.mounted && <Helpers />} */}
         </EditableContext.Provider>
       )
     } else {
       return (
         <EditableContext.Provider value={editableElement}>
-          <editableElement.type {...editableProps} />
+          <editableElement.type key={key} {...restProps} />
           {/* <Helpers /> */}
         </EditableContext.Provider>
       )

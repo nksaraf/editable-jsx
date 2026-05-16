@@ -14,7 +14,7 @@ function SelectionOverlay({ editor }: { editor: Editor }) {
   useEffect(() => {
     const update = () => {
       const sel = editor.selectedElement
-      if (!sel || !sel.ref || !(sel.ref instanceof HTMLElement)) {
+      if (!sel || !sel.ref || !(sel.ref instanceof Element)) {
         setRect(null)
         setInfo(null)
         return
@@ -91,7 +91,7 @@ function HoverOverlay({ editor }: { editor: Editor }) {
 
   useEffect(() => {
     function onMouseOver(e: MouseEvent) {
-      const target = e.target as HTMLElement
+      const target = e.target as Element
       if (!target || target.closest("[data-editor-panel]")) {
         setRect(null)
         return
@@ -304,13 +304,13 @@ function ClassNamePartsEditor({
         .filter(Boolean)
         .join(" ")
 
-      // Apply to DOM — selected and all siblings
-      if (selected.ref instanceof HTMLElement) {
-        selected.ref.className = fullClassName
+      // Apply to DOM — selected and all siblings (Element covers both HTML and SVG)
+      if (selected.ref instanceof Element) {
+        selected.ref.setAttribute("class", fullClassName)
       }
       for (const sib of findSourceSiblings()) {
-        if (sib.ref instanceof HTMLElement) {
-          sib.ref.className = fullClassName
+        if (sib.ref instanceof Element) {
+          sib.ref.setAttribute("class", fullClassName)
         }
       }
     },
@@ -576,15 +576,16 @@ function ClassNameEditor({
       setValue(newValue)
 
       // Apply directly to DOM for instant feedback — this element
-      if (selected.ref instanceof HTMLElement) {
-        selected.ref.className = newValue
+      // Use setAttribute("class") so it works for both HTML and SVG elements
+      if (selected.ref instanceof Element) {
+        selected.ref.setAttribute("class", newValue)
       }
 
       // Apply to ALL loop siblings too (same source line = same component template)
       const siblings = findSourceSiblings()
       for (const sib of siblings) {
-        if (sib.ref instanceof HTMLElement) {
-          sib.ref.className = newValue
+        if (sib.ref instanceof Element) {
+          sib.ref.setAttribute("class", newValue)
         }
       }
 
@@ -639,8 +640,8 @@ function ClassNameEditor({
         el.props.className = value
         el.addChange(el, ["className"], value)
         el.changed = true
-        if (el.ref instanceof HTMLElement) {
-          el.ref.className = value
+        if (el.ref instanceof Element) {
+          el.ref.setAttribute("class", value)
         }
         el.render()
       }
@@ -1284,6 +1285,30 @@ export function EditorPanel({ editor }: { editor: Editor }) {
   const [activeTab, setActiveTab] = useState<"classes" | "tree">("classes")
   const [, forceUpdate] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
+  const [pos, setPos] = useState({ x: 12, y: 12 })
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+
+  // Drag-to-reposition on title bar
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      if (!dragRef.current) return
+      const dx = e.clientX - dragRef.current.startX
+      const dy = e.clientY - dragRef.current.startY
+      setPos({
+        x: dragRef.current.origX + dx,
+        y: dragRef.current.origY + dy
+      })
+    }
+    function onUp() {
+      dragRef.current = null
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [])
 
   useEffect(() => {
     const sub = editor.service.subscribe(() => forceUpdate((n) => n + 1))
@@ -1317,8 +1342,8 @@ export function EditorPanel({ editor }: { editor: Editor }) {
         data-editor-panel
         style={{
           position: "fixed",
-          right: 12,
-          top: 12,
+          left: pos.x,
+          top: pos.y,
           width: collapsed ? 36 : 300,
           maxHeight: "calc(100vh - 24px)",
           background: "#0f172a",
@@ -1331,15 +1356,20 @@ export function EditorPanel({ editor }: { editor: Editor }) {
           transition: "width 150ms ease"
         }}
       >
-        {/* Title bar */}
+        {/* Title bar — drag handle */}
         <div
+          onPointerDown={(e) => {
+            dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
+          }}
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             padding: collapsed ? "6px" : "6px 10px",
             borderBottom: collapsed ? "none" : "1px solid #1e293b",
-            background: "#0f172a"
+            background: "#0f172a",
+            cursor: "grab",
+            userSelect: "none"
           }}
         >
           {!collapsed && (

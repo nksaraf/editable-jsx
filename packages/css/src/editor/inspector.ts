@@ -424,6 +424,10 @@ export function renderInspector(
   info.appendChild(infoRow)
 
   // ── Text content editing ───────────────────────────────
+  // Use closure variables (not DOM properties) for reliable state tracking
+  let textOriginal: string | null = null
+  let textInputEl: HTMLTextAreaElement | null = null
+
   const textContent = getDirectTextContent(el)
   if (textContent.trim()) {
     const textSection = document.createElement("div")
@@ -434,32 +438,19 @@ export function renderInspector(
     textLabel.textContent = "TEXT CONTENT"
     textSection.appendChild(textLabel)
 
-    const textInput = document.createElement("textarea")
-    textInput.className = "text-edit-input"
-    textInput.value = textContent.trim()
-    textInput.rows = Math.min(4, textContent.trim().split("\n").length + 1)
+    textInputEl = document.createElement("textarea")
+    textInputEl.className = "text-edit-input"
+    textInputEl.value = textContent.trim()
+    textInputEl.rows = Math.min(4, textContent.trim().split("\n").length + 1)
 
-    const originalText = textContent.trim()
-    textInput.addEventListener("input", () => {
+    textOriginal = textContent.trim()
+    textInputEl.addEventListener("input", () => {
       // Live preview
-      setDirectTextContent(el, textInput.value)
+      setDirectTextContent(el, textInputEl!.value)
     })
 
-    textSection.appendChild(textInput)
+    textSection.appendChild(textInputEl)
     info.appendChild(textSection)
-
-    // Track text change for save
-    textInput.addEventListener("change", () => {
-      if (textInput.value !== originalText) {
-        // We'll handle text save separately
-        ;(textInput as any).__originalText = originalText
-        ;(textInput as any).__changed = true
-      }
-    })
-
-    // Store reference for save
-    ;(info as any).__textInput = textInput
-    ;(info as any).__textOriginal = originalText
   }
 
   container.appendChild(info)
@@ -686,11 +677,8 @@ export function renderInspector(
       patches.push(patch)
     }
 
-    // Text content patch
-    const textInput = (info as any).__textInput as HTMLTextAreaElement | undefined
-    const originalText = (info as any).__textOriginal as string | undefined
-    if (textInput && originalText && textInput.value !== originalText) {
-      // Resolve source file via Astro annotations or CID fallback
+    // Text content patch — uses closure variables, not DOM properties
+    if (textInputEl && textOriginal && textInputEl.value !== textOriginal) {
       const source = resolveAstroSourceFile(el)
 
       if (source) {
@@ -700,8 +688,8 @@ export function renderInspector(
           textContent: {
             line: source.line,
             col: source.col,
-            oldText: originalText,
-            newText: textInput.value,
+            oldText: textOriginal,
+            newText: textInputEl.value,
           },
         }
         patches.push(patch)

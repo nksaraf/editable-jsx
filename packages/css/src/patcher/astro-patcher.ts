@@ -21,7 +21,10 @@ export function applyAstroPatches(
   file: string,
 ): string {
   const blocks = extractStyleBlocks(content)
-  if (blocks.length === 0) return content
+
+  // Even if there are no style blocks, we still need to process text patches
+  const hasTextPatches = patches.some((p) => p.action_type === "updateTextContent")
+  if (blocks.length === 0 && !hasTextPatches) return content
 
   // Group patches by style block (matched by charOffset)
   const patchesByBlock = new Map<number, CSSPatch[]>()
