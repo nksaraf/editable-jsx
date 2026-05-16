@@ -6,7 +6,7 @@
     "url": "https://github.com/nksaraf"
   },
   "description": "Framework-agnostic CSS visual editor — edit CSS variables, styles, and text content in any Vite project",
-  "version": "0.1.3",
+  "version": "0.1.6",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",

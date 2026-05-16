@@ -23,32 +23,43 @@ export function createCSSEditorPlugin(
     name: "editable-css",
     enforce: "pre",
 
+    config() {
+      return {
+        optimizeDeps: {
+          include: ["@editable-jsx/css/client", "@editable-jsx/css/editor"],
+        },
+      }
+    },
+
     configureServer: configureServer(options),
 
     /**
-     * Inject the editor scripts into the HTML page.
-     * The editor UI is self-contained — no framework dependency.
+     * Inject the editor scripts by resolving the actual file paths.
+     * We resolve at serve time so Vite's module graph handles them.
      */
-    transformIndexHtml() {
-      return [
-        {
-          tag: "script",
-          attrs: { type: "module" },
-          children: `
-            import "@editable-jsx/css/client";
-            import "@editable-jsx/css/editor";
-          `,
-          injectTo: "body",
-        },
-        {
-          tag: "script",
-          attrs: { type: "module" },
-          children: `
-            window.__CSS_EDITOR_OPTIONS__ = ${JSON.stringify({ shortcut })};
-          `,
-          injectTo: "head",
-        },
-      ]
+    transformIndexHtml: {
+      order: "pre" as const,
+      handler() {
+        // Use /@id/ prefix which Vite resolves through its module graph
+        return [
+          {
+            tag: "script",
+            attrs: { type: "module" },
+            children: `window.__CSS_EDITOR_OPTIONS__ = ${JSON.stringify({ shortcut })};`,
+            injectTo: "head" as const,
+          },
+          {
+            tag: "script",
+            attrs: { type: "module", src: "/@id/@editable-jsx/css/client" },
+            injectTo: "body" as const,
+          },
+          {
+            tag: "script",
+            attrs: { type: "module", src: "/@id/@editable-jsx/css/editor" },
+            injectTo: "body" as const,
+          },
+        ]
+      },
     },
 
     /**
