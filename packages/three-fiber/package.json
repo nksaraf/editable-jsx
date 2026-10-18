@@ -1,14 +1,14 @@
 {
   "name": "@react-three/editor",
+  "version": "0.0.16",
   "author": {
     "name": "Nikhil Saraf",
     "email": "nsaraf98@gmail.com",
     "url": "https://github.com/nksaraf"
   },
   "description": "",
-  "version": "0.0.16",
   "main": "dist/react-three-editor.cjs.js",
-  "module": "dist/react-three-editor.esm.js",
+  "module": "./src/index.ts",
   "preconstruct": {
     "entrypoints": [
       "index.ts",
@@ -26,9 +26,7 @@
   ],
   "license": "MIT",
   "sideEffects": false,
-  "scripts": {
-    "build": "preconstruct build"
-  },
+  "scripts": {},
   "babel": {
     "presets": [
       "@babel/preset-env",
@@ -117,5 +115,10 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "vite": "^3.0.7"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./fiber": "./src/fiber/index.ts",
+    "./vite": "./src/vite.ts"
   }
 }
